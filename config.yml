@@ -1,0 +1,43 @@
+vehicle:
+  min_rpm: 30
+  max_rpm: 205
+  wheel_radius: 0.0485
+  wheel_base: 0.19
+  track_width: 0.265
+  gear_ratio: 56
+  motor_voltage: 12
+  velocity_scale: 0.954
+
+  # Encoder counts per WHEEL revolution (post-gearbox). Measured with:
+  #   python3 calibrate.py cpr --motor 1 --turns 10
+  # Used to convert encoder deltas to distance/speed (odometry, drive checks).
+  counts_per_rev: 2474
+
+  # Which set_motor() index (s1..s4) each mecanum wheel is wired to.
+  # Determine with: python3 calibrate.py spin
+  motor_map:
+    fl: 1   # front-left
+    fr: 3   # front-right
+    rl: 2   # rear-left
+    rr: 4   # rear-right
+
+  # Sign that makes a positive command drive each wheel FORWARD.
+  # If a wheel runs backward during `calibrate.py spin`, flip its sign to -1.
+  motor_sign:
+    fl: 1
+    fr: 1
+    rl: 1
+    rr: 1
+
+  # Per-wheel open-loop gain trim (~1.0). Open loop has no PID, so equal duty
+  # does not mean equal real speed -- the faster side makes a straight command
+  # veer. If the robot pulls LEFT driving forward, the right side is faster:
+  # lower fr/rr (e.g. 0.95) until it tracks straight. Pulls RIGHT -> lower fl/rl.
+  # 1.0 = no trim.
+  motor_trim:
+    fl: 0.973
+    fr: 0.939
+    rl: 0.989
+    rr: 0.926
+
+  
