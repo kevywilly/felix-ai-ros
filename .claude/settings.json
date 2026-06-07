@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "find /felix-ai-ros \\( -path '*/build' -o -path '*/install' -o -path '*/log' \\) -prune -o \\( -not -user 1000 -o -not -group 1000 \\) -exec chown -h 1000:1000 {} + 2>/dev/null || true",
+            "async": true,
+            "statusMessage": "Restoring host file ownership (1000:1000)"
+          }
+        ]
+      }
+    ]
+  }
+}
