@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
+from rclpy.executors import ExternalShutdownException
 from geometry_msgs.msg import Twist
 from lib.rosmaster import Rosmaster
 from lib.kinematics import MecanumKinematics
@@ -57,8 +58,10 @@ class RosmasterBridgeNode(Node):
         self.bot.set_motor(s1, s2, s3, s4)
 
     def destroy_node(self):
-        # Safety Protocol: Stop moving the platform instantly upon system shutdown
-        self.get_logger().info("Stopping robot platform safely...")
+        # Safety Protocol: Stop moving the platform instantly upon system shutdown.
+        # Use print(), not get_logger(): on Ctrl-C the rclpy context is already
+        # torn down, so rosout publishing fails with "publisher's context is invalid".
+        print("Stopping robot platform safely...")
         self.bot.set_motor(0, 0, 0, 0)
         del self.bot
         super().destroy_node()
@@ -68,11 +71,12 @@ def main(args=None):
     node = RosmasterBridgeNode()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 if __name__ == '__main__':
     main()

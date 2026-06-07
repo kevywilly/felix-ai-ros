@@ -186,7 +186,8 @@ def main(args=None):
     finally:
         node.stop()
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
 
 

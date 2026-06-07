@@ -44,6 +44,10 @@ echo "Starting rosmaster_bridge_node on ${SERIAL_PORT} ..."
 python3 nodes/rosmaster_bridge_node.py --ros-args -p "port:=${SERIAL_PORT}" &
 BRIDGE_PID=$!
 
+echo "Starting tof_array_node"
+python3 nodes/tof_array_node.py &
+TOF_ARRAY_PID=$!
+
 # Ensure the bridge is stopped when teleop exits or this script is interrupted.
 cleanup() {
     echo
@@ -51,6 +55,10 @@ cleanup() {
     if kill -0 "$BRIDGE_PID" 2>/dev/null; then
         kill "$BRIDGE_PID" 2>/dev/null || true
         wait "$BRIDGE_PID" 2>/dev/null || true
+    fi
+    if kill -0 "$TOF_ARRAY_PID" 2>/dev/null; then
+        kill "$TOF_ARRAY_PID" 2>/dev/null || true
+        wait "$TOF_ARRAY_PID" 2>/dev/null || true
     fi
 }
 trap cleanup EXIT INT TERM
