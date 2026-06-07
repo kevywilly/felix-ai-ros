@@ -16,7 +16,8 @@ The repo root is a colcon workspace; packages live under `src/`:
 | Package | Role |
 |---------|------|
 | `felix_base` | Base driver: hardware bridge (`/cmd_vel`→motors), odometry + IMU, ToF array, keyboard teleop, mecanum kinematics, and `config/config.yml`. |
-| `felix_bringup` | Top-level launch composition + params (depends on `felix_base`). |
+| `felix_localization` | `robot_localization` EKF fusing `/odom` + `/imu/data` → `odom→base_link` (`config/ekf.yaml`). |
+| `felix_bringup` | Top-level launch composition + params (depends on `felix_base` + `felix_localization`). |
 
 Inside `felix_base`:
 
@@ -45,6 +46,7 @@ teleop ──/cmd_vel (Twist)──► bridge_node ──► set_motor() ──�
 - ROS 2 Humble (`source /opt/ros/humble/setup.bash`)
 - Python 3 with `rclpy`, `pyserial`, `pyyaml`
 - `setuptools<80` for `--symlink-install` (see `BUILD_NOTES.md`)
+- `ros-humble-robot-localization` for the EKF (`apt install`; in the Dockerfile)
 - The ROSMASTER board on a serial port (default `/dev/myserial`)
 
 ## Build & run
@@ -58,19 +60,40 @@ source install/setup.bash
 ./start_ros2.sh /dev/ttyUSB0    # custom serial port
 ```
 
-`start_ros2.sh` launches the bridge + ToF nodes in the background (via
+`start_ros2.sh` launches the bringup stack in the background (via
 `ros2 launch felix_bringup felix.launch.py`) and the keyboard teleop in the
 foreground. `ros2 launch` owns Ctrl-C and shuts everything down cleanly, zeroing
-the motors. Or run pieces directly:
+the motors.
+
+### Bringup
+
+`felix_bringup felix.launch.py` composes the full base stack: the **bridge**, the
+**ToF** node, and — when `use_ekf:=true` (the default) — the `felix_localization`
+**EKF** that fuses `/odom` + `/imu/data` into `odom→base_link`. With the EKF on,
+the bridge's own `odom→base_link` TF is suppressed so the two don't fight, and a
+temporary `base_link→imu_link` static TF is published.
 
 ```bash
-ros2 launch felix_bringup felix.launch.py port:=/dev/myserial   # bridge + tof
-ros2 run felix_base teleop                                      # teleop (own terminal)
+ros2 launch felix_bringup felix.launch.py                       # bridge + tof + EKF
+ros2 launch felix_bringup felix.launch.py port:=/dev/ttyUSB0    # custom serial port
+ros2 launch felix_bringup felix.launch.py use_ekf:=false        # raw bridge odom TF, no EKF
 ros2 run felix_base calibrate limits                            # calibration CLI
 ```
 
-### Keyboard controls
+The EKF needs `ros-humble-robot-localization` installed (see `BUILD_NOTES.md`).
 
+### Teleop
+
+Teleop runs in its **own terminal** (it reads raw keystrokes, which it can't do
+under `ros2 launch`). Both options publish `geometry_msgs/Twist` on `/cmd_vel`;
+the bridge clamps every command to the configured envelope and stops the motors
+if commands go silent (see *Notes*), so either is safe to drive with.
+
+**Custom node** (`felix_base teleop`) — limits come from `config.yml`:
+
+```bash
+ros2 run felix_base teleop
+```
 ```
    u    i    o          i / , : forward / backward
    j    k    l          j / l : rotate left / right
@@ -80,6 +103,13 @@ Hold Shift to strafe:   J / L : strafe left / right
 
 q/z : all speeds ±10%   w/x : linear ±10%   e/c : angular ±10%
 Ctrl-C : quit
+```
+
+**Standard ROS node** (`teleop_twist_keyboard`) — interchangeable; use its
+holonomic keys (or hold Shift) for mecanum strafe (`linear.y`):
+
+```bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
 ```
 
 ## config.yml
@@ -122,9 +152,10 @@ Derived limits (`ros2 run felix_base calibrate limits`):
 The bridge publishes wheel-encoder odometry on `/odom` and broadcasts the
 `odom→base_link` TF, plus the board IMU on `/imu/data`. Odometry is **open-loop
 dead reckoning** — it drifts, and heading is the least reliable component (wheel
-slip is unobserved). The IMU is published so a `robot_localization` EKF can fuse
-gyro yaw on top of the wheel odometry; that fusion is the planned next step
-before SLAM and is **not** done yet.
+slip is unobserved). The IMU is published so the `felix_localization`
+`robot_localization` EKF can fuse gyro yaw on top of the wheel odometry into a
+smoother `odom→base_link` — enabled by default in bringup (`use_ekf:=true`). The
+remaining steps before SLAM are `felix_description` (URDF/TF) and the RPLIDAR.
 
 ## Calibration
 
@@ -149,8 +180,16 @@ Put the resulting values into `config.yml` (`motor_map`, `motor_sign`,
 - Control is **open-loop** (`set_motor` percent duty); there is no firmware
   velocity PID on this path. `velocity_scale` corrects the average mapping but
   actual speed still varies with load and battery voltage.
-- Commands beyond the chassis limits are scaled down **uniformly** (direction
-  preserved) inside `MecanumKinematics.body_to_motor`.
+- **`/cmd_vel` safety boundary (bridge):** every incoming command is clamped
+  per-axis to the configured envelope and stripped of NaN/inf
+  (`MecanumKinematics.clamp_body`) before driving the motors — the single guard
+  shared by teleop and any future Nav2/SLAM planner. Magnitudes beyond the limits
+  are then additionally scaled down **uniformly** (direction preserved) inside
+  `body_to_motor`.
+- **Watchdog:** because `set_motor()` latches the last command indefinitely, the
+  bridge stops the motors if no `/cmd_vel` arrives within `cmd_vel_timeout`
+  (default `0.5` s; set to `0` to disable) — failsafe against a crashed publisher
+  or dropped link.
 
 ## Roadmap
 

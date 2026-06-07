@@ -102,6 +102,22 @@ class RosmasterBridgeNode(Node):
         self.subscription = self.create_subscription(
             Twist, '/cmd_vel', self.cmd_vel_callback, 10)
 
+        # --- /cmd_vel watchdog ---------------------------------------------
+        # set_motor() latches the last command indefinitely, so a crashed Nav2
+        # planner, a hung script, or a dropped DDS link would otherwise leave the
+        # robot driving forever. If no command arrives within cmd_vel_timeout
+        # seconds, stop the motors. 0 disables. Armed only after the first
+        # command (idle-at-startup is not a fault); re-arms when commands resume.
+        self.declare_parameter('cmd_vel_timeout', 0.5)
+        self.cmd_vel_timeout = float(self.get_parameter('cmd_vel_timeout').value)
+        self._last_cmd_time = None
+        self._cmd_stopped = False
+        self._last_cmd_moving = False
+        if self.cmd_vel_timeout > 0.0:
+            self.watchdog_timer = self.create_timer(0.1, self._cmd_watchdog)
+            self.get_logger().info(
+                f"/cmd_vel watchdog: stop motors after {self.cmd_vel_timeout:.2f}s of silence")
+
         # Odometry can only run if the encoders are calibrated (counts_per_rev).
         if self.publish_odom and not self.kin.counts_per_rev:
             self.get_logger().warning(
@@ -128,16 +144,44 @@ class RosmasterBridgeNode(Node):
         """
         Convert a body-frame velocity command (m/s, rad/s) into per-wheel motor
         commands using our custom mecanum kinematics, then drive the four motors
-        directly via set_motor() (percent duty, open loop). Commands beyond the
-        chassis limits are scaled down uniformly inside body_to_motor().
+        directly via set_motor() (percent duty, open loop).
+
+        Every command is first clamped to the configured envelope and stripped of
+        non-finite values (clamp_body) -- the single safety boundary shared by
+        teleop and any future Nav2/SLAM planner. Magnitudes beyond the chassis
+        limits are then additionally scaled down uniformly inside body_to_motor().
         """
         # x = forward/back (m/s), y = lateral strafe (m/s), z = yaw rate (rad/s)
-        vx = msg.linear.x
-        vy = msg.linear.y
-        wz = msg.angular.z
+        vx, vy, wz = self.kin.clamp_body(msg.linear.x, msg.linear.y, msg.angular.z)
 
         s1, s2, s3, s4 = self.kin.body_to_motor(vx, vy, wz)
         self.bot.set_motor(s1, s2, s3, s4)
+
+        # Pet the watchdog and record whether this command was actually driving
+        # (so the failsafe only warns when motion was interrupted, not on a
+        # normal idle stop where teleop sends a single zero then goes quiet).
+        self._last_cmd_time = self.get_clock().now()
+        self._cmd_stopped = False
+        self._last_cmd_moving = (vx != 0.0 or vy != 0.0 or wz != 0.0)
+
+    def _cmd_watchdog(self):
+        """Failsafe: stop the motors if /cmd_vel has gone silent past the timeout.
+
+        Runs at 10 Hz. No-op until the first command (idle startup is not a
+        fault) and once already stopped (avoids re-spamming set_motor). The
+        warning fires only if the robot was moving when commands stopped -- the
+        real "planner died mid-drive" case -- so a normal stop-and-go teleop
+        session stays quiet."""
+        if self._last_cmd_time is None or self._cmd_stopped:
+            return
+        elapsed = (self.get_clock().now() - self._last_cmd_time).nanoseconds / 1e9
+        if elapsed > self.cmd_vel_timeout:
+            self.bot.set_motor(0, 0, 0, 0)
+            self._cmd_stopped = True
+            if self._last_cmd_moving:
+                self.get_logger().warning(
+                    f"/cmd_vel silent for {elapsed:.2f}s (> {self.cmd_vel_timeout:.2f}s) "
+                    "while moving -- motors stopped (failsafe).")
 
     def _on_sensor_timer(self):
         now = self.get_clock().now()

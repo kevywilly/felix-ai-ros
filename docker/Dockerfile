@@ -63,6 +63,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       ros-humble-rplidar-ros \
       ros-humble-nav2-bringup \
       ros-humble-robot-localization \
+      ros-humble-teleop-twist-keyboard \
  && rm -rf /var/lib/apt/lists/*
 
 # ---- Tier 7: Hardware Python deps (rare changes) ----

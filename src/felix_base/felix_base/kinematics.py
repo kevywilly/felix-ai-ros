@@ -172,6 +172,23 @@ class MecanumKinematics:
         pct = self.deadband_pct + frac * (100.0 - self.deadband_pct)
         return math.copysign(pct, w)
 
+    def clamp_body(self, vx, vy, wz):
+        """Bound a body-velocity command to the configured envelope and reject
+        non-finite values. Returns (vx, vy, wz) with each axis clamped to +/- its
+        configured max; any NaN/inf component becomes 0.0.
+
+        This is the safety boundary for *every* /cmd_vel publisher -- keyboard
+        teleop today, a Nav2/SLAM planner later. A glitchy autonomous command
+        (over-scale, or a NaN from a diverging controller) must never reach the
+        motors: max/min alone passes NaN through, and int(round(NaN)) downstream
+        would raise and could latch the motors at the last command, so the
+        finite-check here is load-bearing, not cosmetic. Magnitude clamping is
+        partly redundant with saturate() (which scales wheels under w_max), but
+        this bounds each axis explicitly and sanitises before any arithmetic."""
+        def _axis(v, lim):
+            return max(-lim, min(lim, v)) if math.isfinite(v) else 0.0
+        return _axis(vx, self.vx_max), _axis(vy, self.vy_max), _axis(wz, self.wz_max)
+
     def body_to_motor(self, vx, vy, wz):
         """
         Full pipeline: body velocity -> ordered, signed integer motor commands
