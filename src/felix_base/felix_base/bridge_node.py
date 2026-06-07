@@ -204,6 +204,12 @@ class RosmasterBridgeNode(Node):
         ax, ay, az = self.bot.get_accelerometer_data()
         roll, pitch, yaw = self.bot.get_imu_attitude_data(ToAngle=False)
 
+        # The board reports the gravity vector (down-positive): level-at-rest reads
+        # az ~= -9.66, but REP-145 wants specific force (up-positive, +9.81). Negate
+        # the accel vector so a stationary, level IMU reads +z, consistent with the
+        # z-up frame the gyro already uses (confirmed: CCW -> +angular_velocity.z).
+        ax, ay, az = -ax, -ay, -az
+
         imu = Imu()
         imu.header.stamp = now.to_msg()
         imu.header.frame_id = self.imu_frame

@@ -1,0 +1,53 @@
+### robot_localization EKF for the Felix mecanum base.
+#
+# Fuses the two raw streams the felix_base bridge publishes into a smooth,
+# continuous odom -> base_link:
+#   - /odom      (wheel encoders): body-frame linear velocity vx, vy  -- trusted
+#   - /imu/data  (board IMU):      yaw rate (gyro Z)                   -- trusted
+#
+# Deliberately NOT fused: wheel-derived yaw (slip), absolute pose (drifts and is
+# what the map->odom SLAM correction is for), IMU absolute orientation (drifts /
+# magnetometer unreliable near the motors), and IMU acceleration (noisy, and this
+# board's in-plane accel axes are left-handed -- see project notes). This is the
+# standard "continuous local odometry" setup: the odom frame is allowed to drift;
+# SLAM will later correct it via map->odom.
+
+ekf_filter_node:
+  ros__parameters:
+    frequency: 30.0
+    sensor_timeout: 0.1
+    two_d_mode: true                 # ground robot: zero z, roll, pitch
+    publish_tf: true                 # EKF owns odom -> base_link
+    publish_acceleration: false
+
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_link
+    world_frame: odom                # fusing to odom (no map source yet)
+
+    # --- Wheel odometry: body-frame vx, vy only ---
+    # order: x, y, z, roll, pitch, yaw, vx, vy, vz, vroll, vpitch, vyaw, ax, ay, az
+    odom0: odom
+    odom0_config: [false, false, false,
+                   false, false, false,
+                   true,  true,  false,
+                   false, false, false,
+                   false, false, false]
+    odom0_differential: false
+    odom0_relative: false
+    odom0_queue_size: 10
+
+    # --- IMU: yaw rate (gyro Z) only ---
+    imu0: imu/data
+    imu0_config: [false, false, false,
+                  false, false, false,
+                  false, false, false,
+                  false, false, true,
+                  false, false, false]
+    imu0_differential: false
+    imu0_relative: false
+    imu0_queue_size: 10
+    imu0_remove_gravitational_acceleration: true   # unused (accel not fused)
+
+    # Process-noise / initial covariance: robot_localization defaults are sane.
+    # Tune later if the estimate is jittery (lower process noise) or laggy.

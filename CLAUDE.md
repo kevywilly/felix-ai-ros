@@ -17,9 +17,11 @@ into the Docker container — no separate `felix_ws`). Packages live under `src/
   open-loop), wheel-encoder **odometry** + `odom→base_link` TF, **IMU**
   publishing, the ToF array, keyboard teleop, the mecanum kinematics, and
   `config/config.yml`.
+- **`felix_localization`** — `robot_localization` EKF fusing `/odom` (wheel
+  `vx`/`vy`) + `/imu/data` (gyro yaw rate) into a smooth `odom→base_link`.
 - **`felix_bringup`** — top-level launch composition + params (depends on
-  `felix_base`). Future subsystems (`felix_description`, `felix_slam`,
-  `felix_perception`, `felix_streaming`) compose in here.
+  `felix_base` + `felix_localization`). Future subsystems (`felix_description`,
+  `felix_slam`, `felix_perception`, `felix_streaming`) compose in here.
 
 Build & run (from the repo root):
 
@@ -72,9 +74,13 @@ gone). See `BUILD_NOTES.md` for the dev loop and the required setuptools pin.
   (m/s², MPU9250 firmware path) / `get_imu_attitude_data()` (fused rad). If the
   board is an ICM20948 the raw ratios differ — verify by rotating and watching
   `angular_velocity.z`.
-- **Fusion is not done yet.** The intended next step before SLAM is a
-  `robot_localization` EKF fusing `/odom` (good x/y) + `/imu/data` (good yaw)
-  into `odom→base_link`. This node publishes the two raw streams only.
+- **Fusion** is the `felix_localization` EKF (`config/ekf.yaml`): wheel `vx`/`vy`
+  + IMU gyro yaw-rate → `odom→base_link`. When the EKF runs (`use_ekf:=true`,
+  the default), `felix_bringup` sets the bridge's `publish_tf:=false` so they
+  don't both publish that transform, and adds a temporary identity
+  `base_link→imu_link` static TF (the EKF needs it to consume the IMU; replaced
+  by the URDF in `felix_description` later — yaw-rate is invariant to it for now).
+  Needs `ros-humble-robot-localization` installed.
 
 ## Calibration values (in config.yml)
 
@@ -113,9 +119,10 @@ colcon build --symlink-install
 
 - ROSMASTER board on `/dev/myserial`; **RPLIDAR on `/dev/rplidar`** (separate node,
   for SLAM). Encoders confirmed reporting; the board has an IMU.
-- Planned packages: `felix_description` (URDF/TF, needed for SLAM),
-  `felix_slam` (slam_toolbox + rplidar driver), `felix_perception` (YOLO →
-  `vision_msgs`), `felix_streaming` (WebRTC video).
+- Planned packages: `felix_description` (URDF/TF, needed for SLAM — also lands
+  the real `base_link→imu_link` transform), `felix_slam` (slam_toolbox + rplidar
+  driver), `felix_perception` (YOLO → `vision_msgs`), `felix_streaming` (WebRTC
+  video).
 
 ## Safety
 
