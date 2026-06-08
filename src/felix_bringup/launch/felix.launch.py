@@ -38,6 +38,8 @@ def generate_launch_description():
 
     ekf_launch = PathJoinSubstitution(
         [FindPackageShare("felix_localization"), "launch", "ekf.launch.py"])
+    description_launch = PathJoinSubstitution(
+        [FindPackageShare("felix_description"), "launch", "description.launch.py"])
 
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -61,17 +63,12 @@ def generate_launch_description():
             output="screen",
         ),
 
-        # Temporary base_link->imu_link transform so the EKF can consume the IMU.
-        # Identity is fine here because we only fuse yaw rate (gyro Z), which is
-        # invariant to rotation about the shared z-axis. felix_description (URDF)
-        # will replace this with the real mounting transform (~90deg yaw, plus the
-        # accel-axis fix) once we need accel/heading.
-        Node(
-            package="tf2_ros",
-            executable="static_transform_publisher",
-            name="base_to_imu_static_tf",
-            arguments=["--frame-id", "base_link", "--child-frame-id", "imu_link"],
-            condition=IfCondition(use_ekf),
+        # Robot model -> /tf_static (base_footprint->base_link->{imu_link, laser}).
+        # robot_state_publisher now owns these frames, so the EKF gets
+        # base_link->imu_link and SLAM gets base_link->laser from one source. This
+        # replaces the temporary identity static_transform_publisher we used before.
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource([description_launch]),
         ),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource([ekf_launch]),

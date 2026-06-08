@@ -29,6 +29,14 @@ vehicle:
     rl: 1
     rr: 1
 
+  # Encoder counting polarity vs the drive direction, for ODOMETRY ONLY.
+  # The encoders count opposite to the motor drive on this chassis (a forward-
+  # driven wheel reports a NEGATIVE delta), so wheel odometry read motion
+  # backwards (verified: driving forward gave vx < 0). This is independent of
+  # motor_sign (which is for driving and is correct), so it lives separately.
+  # -1 flips it; 1 = no flip. Applied in encoder_deltas_to_wheel_rads only.
+  encoder_sign: -1
+
   # Per-wheel open-loop gain trim (~1.0). Open loop has no PID, so equal duty
   # does not mean equal real speed -- the faster side makes a straight command
   # veer. If the robot pulls LEFT driving forward, the right side is faster:

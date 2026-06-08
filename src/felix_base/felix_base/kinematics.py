@@ -102,6 +102,12 @@ class MecanumKinematics:
         self.motor_map = {w: int(mapping[w]) for w in WHEELS}
         self.motor_sign = {w: int(signs[w]) for w in WHEELS}
 
+        # Encoder counting polarity vs drive direction (odometry only). On this
+        # chassis the encoders count opposite the motor drive, so a forward wheel
+        # reports a negative delta -- without this, wheel odometry reads motion
+        # backwards. Kept separate from motor_sign (which drives correctly).
+        self.encoder_sign = int(v.get("encoder_sign", 1) or 1)
+
         # Per-wheel open-loop gain trim (dimensionless, ~1.0). Open loop has no
         # PID, so nominally-equal motors run at slightly different real speeds,
         # which makes a straight-forward command veer. Lower the trim on the
@@ -151,7 +157,7 @@ class MecanumKinematics:
         rads = {}
         for w in WHEELS:
             idx = self.motor_map[w] - 1                    # encoder tuple is s1..s4
-            signed = self.motor_sign[w] * enc_delta[idx]
+            signed = self.encoder_sign * self.motor_sign[w] * enc_delta[idx]
             rads[w] = signed / self.counts_per_rev * 2.0 * math.pi
         return rads
 

@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(apt-get update *)"
+      "Bash(apt-get update *)",
+      "Bash(ps -eo pid,etime,args)"
     ]
   }
 }

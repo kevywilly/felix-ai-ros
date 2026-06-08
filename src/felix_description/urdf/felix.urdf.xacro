@@ -1,0 +1,97 @@
+<?xml version="1.0"?>
+<!--
+  Felix mecanum chassis description.
+
+  TF tree:  base_footprint -> base_link -> imu_link
+                                        -> laser
+
+  base_link sits at the chassis rotation centre (the point the EKF publishes
+  odom -> base_link for); base_footprint is its ground projection. robot_state_
+  publisher turns the fixed joints below into /tf_static, which is what the EKF
+  (base_link -> imu_link) and SLAM (base_link -> laser) consume; this replaces
+  the temporary static_transform_publisher that bringup used before.
+
+  >>> EDIT THE MOUNT OFFSETS BELOW TO YOUR MEASURED VALUES <<<
+  All offsets are in metres / radians, in REP-103 base_link axes:
+    x = forward, y = left, z = up; yaw +ve = counter-clockwise (from above).
+-->
+<robot xmlns:xacro="http://ros.org/wiki/xacro" name="felix">
+
+  <!-- ===================== Tunable geometry ===================== -->
+  <!-- Chassis box (visual only; from config.yml geometry, approx). -->
+  <xacro:property name="base_len"   value="0.22"/>   <!-- x, front<->rear -->
+  <xacro:property name="base_width" value="0.28"/>   <!-- y, left<->right -->
+  <xacro:property name="base_height" value="0.08"/>  <!-- z, chassis thickness -->
+  <xacro:property name="wheel_radius" value="0.0485"/> <!-- base_link height above ground -->
+
+  <!-- LASER (RPLIDAR) mount, base_link -> laser.  TODO: MEASURE THESE. -->
+  <!-- x/y/z = lidar centre offset from base_link; yaw = rotation of the lidar's
+       0-degree ray relative to robot forward (+x). If the scan appears rotated
+       in rviz/the map, adjust laser_yaw (RPLIDAR zero often faces the cable). -->
+  <!-- Measured 2026-06-07: 0.08 m forward, centred, beam 0.115 m above floor.
+       laser_z is relative to base_link (axle height), = 0.115 - wheel_radius.
+       laser_yaw = pi: the RPLIDAR is mounted rotated 180deg (zero-ray faces
+       backward). Verified live: a wall squarely ~1m in FRONT of the robot
+       appeared at lidar bearing ~180deg; without this the map drifted badly
+       (scans fought the odometry, robot appeared to drive through walls). -->
+  <xacro:property name="laser_x"   value="0.08"/>
+  <xacro:property name="laser_y"   value="0.0"/>
+  <xacro:property name="laser_z"   value="0.0665"/>
+  <xacro:property name="laser_yaw" value="3.14159265"/>
+
+  <!-- IMU mount, base_link -> imu_link.  Identity for now: the EKF only fuses
+       gyro yaw-rate, which is invariant to rotation about the shared z-axis, so
+       this does not affect localisation. The board's in-plane accel axes are
+       left-handed vs the robot (IMU +y ~ forward, +x ~ left); only encode the
+       real roll/pitch/yaw here if/when you start fusing acceleration. -->
+  <xacro:property name="imu_x"     value="0.0"/>
+  <xacro:property name="imu_y"     value="0.0"/>
+  <xacro:property name="imu_z"     value="0.0"/>
+  <xacro:property name="imu_roll"  value="0.0"/>
+  <xacro:property name="imu_pitch" value="0.0"/>
+  <xacro:property name="imu_yaw"   value="0.0"/>
+
+  <!-- ===================== Materials ===================== -->
+  <material name="felix_grey"><color rgba="0.25 0.27 0.30 1.0"/></material>
+  <material name="felix_black"><color rgba="0.05 0.05 0.05 1.0"/></material>
+
+  <!-- ===================== Links & joints ===================== -->
+  <!-- Ground-projection frame. Nav2 and SLAM commonly reference this. -->
+  <link name="base_footprint"/>
+
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="${base_len} ${base_width} ${base_height}"/></geometry>
+      <material name="felix_grey"/>
+    </visual>
+  </link>
+
+  <joint name="base_footprint_to_base_link" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <!-- Lift base_link to axle height above the ground projection. -->
+    <origin xyz="0 0 ${wheel_radius}" rpy="0 0 0"/>
+  </joint>
+
+  <link name="imu_link"/>
+  <joint name="base_link_to_imu" type="fixed">
+    <parent link="base_link"/>
+    <child link="imu_link"/>
+    <origin xyz="${imu_x} ${imu_y} ${imu_z}" rpy="${imu_roll} ${imu_pitch} ${imu_yaw}"/>
+  </joint>
+
+  <link name="laser">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.035" length="0.04"/></geometry>
+      <material name="felix_black"/>
+    </visual>
+  </link>
+  <joint name="base_link_to_laser" type="fixed">
+    <parent link="base_link"/>
+    <child link="laser"/>
+    <origin xyz="${laser_x} ${laser_y} ${laser_z}" rpy="0 0 ${laser_yaw}"/>
+  </joint>
+
+</robot>

@@ -1,19 +1,18 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>felix_bringup</name>
+  <name>felix_description</name>
   <version>0.1.0</version>
   <description>
-    Top-level launch composition and parameters for the Felix robot. Brings up
-    the felix_base driver stack today; future subsystems (description, slam,
-    perception, streaming) get composed in here too.
+    URDF/xacro model and robot_state_publisher for the Felix mecanum chassis.
+    Defines the base_footprint -> base_link -> {imu_link, laser} TF tree that the
+    EKF and SLAM depend on, replacing the temporary static transforms in bringup.
   </description>
   <maintainer email="kevin.williams@sidusa.com">Kevin Williams</maintainer>
   <license>Proprietary</license>
 
-  <exec_depend>felix_base</exec_depend>
-  <exec_depend>felix_localization</exec_depend>
-  <exec_depend>felix_description</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>xacro</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
 

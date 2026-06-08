@@ -1,19 +1,19 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>felix_bringup</name>
+  <name>felix_slam</name>
   <version>0.1.0</version>
   <description>
-    Top-level launch composition and parameters for the Felix robot. Brings up
-    the felix_base driver stack today; future subsystems (description, slam,
-    perception, streaming) get composed in here too.
+    2D SLAM for Felix: the RPLIDAR driver (/scan in the laser frame) feeding
+    slam_toolbox, which builds the map and publishes map->odom on top of the
+    EKF's odom->base_link. Assumes felix_bringup (base + EKF + description) is
+    already running.
   </description>
   <maintainer email="kevin.williams@sidusa.com">Kevin Williams</maintainer>
   <license>Proprietary</license>
 
-  <exec_depend>felix_base</exec_depend>
-  <exec_depend>felix_localization</exec_depend>
-  <exec_depend>felix_description</exec_depend>
+  <exec_depend>rplidar_ros</exec_depend>
+  <exec_depend>slam_toolbox</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
 

@@ -260,7 +260,13 @@ class RosmasterBridgeNode(Node):
         imu.orientation = quaternion_from_rpy(roll, pitch, yaw)
         imu.angular_velocity.x = gx
         imu.angular_velocity.y = gy
-        imu.angular_velocity.z = gz
+        # Gyro Z is inverted vs REP-103 on this board: a physical CCW (left) spin
+        # reads NEGATIVE raw (verified live -- holding teleop 'j', which drives a
+        # confirmed CCW spin, gave angular_velocity.z ~ -0.88). REP-103 wants
+        # CCW = +z, so negate. This is the only IMU axis the EKF fuses (vyaw), so
+        # it sets the heading sense. (gx/gy are unused/unverified; the full
+        # IMU->base_link rotation belongs in felix_description's imu_link later.)
+        imu.angular_velocity.z = -gz
         imu.linear_acceleration.x = ax
         imu.linear_acceleration.y = ay
         imu.linear_acceleration.z = az
