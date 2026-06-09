@@ -5,4 +5,4 @@ set -euo pipefail
 # (avoids: "Unable to enable DIRECT ACCESS FILTERING - DROP rule" during RUN)
 cd "$(dirname "$0")"
 
-DOCKER_BUILDKIT=1 docker build --no-cache --network=host -f Dockerfile.ros -t felix-ai-ros:latest .
+DOCKER_BUILDKIT=1 docker build --no-cache --network=host -f Dockerfile -t felix-ai-ros:latest .

@@ -7,10 +7,11 @@
 #
 # Deliberately NOT fused: wheel-derived yaw (slip), absolute pose (drifts and is
 # what the map->odom SLAM correction is for), IMU absolute orientation (drifts /
-# magnetometer unreliable near the motors), and IMU acceleration (noisy, and this
-# board's in-plane accel axes are left-handed -- see project notes). This is the
-# standard "continuous local odometry" setup: the odom frame is allowed to drift;
-# SLAM will later correct it via map->odom.
+# magnetometer unreliable near the motors), and IMU acceleration (noisy, and
+# published raw). Only gyro-Z (yaw rate) is fused; its raw sign is board-inverted
+# vs REP-103 and is corrected in bridge_node._publish_imu (CCW = +z), verified
+# 2026-06-08. This is the standard "continuous local odometry" setup: the odom
+# frame is allowed to drift; SLAM will later correct it via map->odom.
 
 ekf_filter_node:
   ros__parameters:

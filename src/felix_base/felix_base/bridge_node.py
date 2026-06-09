@@ -248,11 +248,12 @@ class RosmasterBridgeNode(Node):
         ax, ay, az = self.bot.get_accelerometer_data()
         roll, pitch, yaw = self.bot.get_imu_attitude_data(ToAngle=False)
 
-        # The board reports the gravity vector (down-positive): level-at-rest reads
-        # az ~= -9.66, but REP-145 wants specific force (up-positive, +9.81). Negate
-        # the accel vector so a stationary, level IMU reads +z, consistent with the
-        # z-up frame the gyro already uses (confirmed: CCW -> +angular_velocity.z).
-        ax, ay, az = -ax, -ay, -az
+        # Accelerometer published RAW (no correction). At rest the board reports the
+        # gravity vector down-positive, so linear_acceleration.z ~= -9.95 (verified
+        # 2026-06-08). This is sign-flipped vs REP-145 (specific force, up-positive),
+        # but accel is not fused by the EKF or used by SLAM, so it stays raw -- fix
+        # it as a characterized choice only if/when acceleration is fused.
+        # The gyro-Z sign IS corrected below (the one channel the EKF fuses).
 
         imu = Imu()
         imu.header.stamp = now.to_msg()
@@ -260,12 +261,13 @@ class RosmasterBridgeNode(Node):
         imu.orientation = quaternion_from_rpy(roll, pitch, yaw)
         imu.angular_velocity.x = gx
         imu.angular_velocity.y = gy
-        # Gyro Z is inverted vs REP-103 on this board: a physical CCW (left) spin
-        # reads NEGATIVE raw (verified live -- holding teleop 'j', which drives a
-        # confirmed CCW spin, gave angular_velocity.z ~ -0.88). REP-103 wants
-        # CCW = +z, so negate. This is the only IMU axis the EKF fuses (vyaw), so
-        # it sets the heading sense. (gx/gy are unused/unverified; the full
-        # IMU->base_link rotation belongs in felix_description's imu_link later.)
+        # Board-intrinsic: raw gyro-Z is inverted vs REP-103 (a physical CCW spin
+        # reads NEGATIVE). Re-confirmed 2026-06-08 on the correctly-mounted IMU
+        # (CCW spin -> -1.14 rad/s, CW spin -> +4.46), so this is a property of the
+        # board, not the old mount -- an in-plane re-mount can't flip the z-axis.
+        # Negate so CCW = +z, matching wheel-odom yaw. This is the ONLY IMU axis the
+        # EKF fuses (vyaw); without it the EKF heading fights the wheels (map rotates
+        # backwards). gx/gy are unused/unverified.
         imu.angular_velocity.z = -gz
         imu.linear_acceleration.x = ax
         imu.linear_acceleration.y = ay

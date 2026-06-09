@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(apt-get update *)",
-      "Bash(ps -eo pid,etime,args)"
+      "Bash(ps -eo pid,etime,args)",
+      "Bash(xargs cat)",
+      "Read(//dev/**)",
+      "Read(//etc/udev/rules.d/**)",
+      "Bash(chown 1000:1000 src/felix_slam/config/slam_toolbox.yaml)"
     ]
   }
 }

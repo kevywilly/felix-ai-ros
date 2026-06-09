@@ -17,7 +17,10 @@ The repo root is a colcon workspace; packages live under `src/`:
 |---------|------|
 | `felix_base` | Base driver: hardware bridge (`/cmd_vel`→motors), odometry + IMU, ToF array, keyboard teleop, mecanum kinematics, and `config/config.yml`. |
 | `felix_localization` | `robot_localization` EKF fusing `/odom` + `/imu/data` → `odom→base_link` (`config/ekf.yaml`). |
-| `felix_bringup` | Top-level launch composition + params (depends on `felix_base` + `felix_localization`). |
+| `felix_description` | URDF/TF: publishes `base_footprint→base_link→{imu_link, laser}` on `/tf_static` (the EKF and SLAM consume it). |
+| `felix_slam` | RPLIDAR driver + `slam_toolbox` → live map. |
+| `felix_camera` | CSI camera → compressed image (FPV in Foxglove). |
+| `felix_bringup` | Top-level launch composition + params. `mapping.launch.py` brings up the **full stack** in one process; `felix.launch.py` is the base stack alone. |
 
 Inside `felix_base`:
 
@@ -49,45 +52,97 @@ teleop ──/cmd_vel (Twist)──► bridge_node ──► set_motor() ──�
 - `ros-humble-robot-localization` for the EKF (`apt install`; in the Dockerfile)
 - The ROSMASTER board on a serial port (default `/dev/myserial`)
 
-## Build & run
+## Container (run from the Jetson host)
+
+The workspace lives inside the `felix-ai` Docker container (`docker/Dockerfile`).
+Start it foreground (drops you straight into a ROS-sourced shell):
+
+```bash
+./scripts/start-container.sh          # docker run -it --rm … (foreground)
+```
+
+Or run it **detached** and `exec` in on demand — handy for leaving the robot up
+in the background and opening shells as needed:
+
+```bash
+DETACH=1 ./docker/run-interactive.sh felix-ai-ros:latest   # background (-dit)
+# or the convenience wrapper:
+./scripts/start-container-detached.sh
+
+docker exec -it felix-ai bash         # enter; shell is ROS-sourced, cd /felix-ai-ros
+docker stop felix-ai                  # stop + remove (container is --rm)
+```
+
+`DETACH=1` just swaps `-it` for `-dit` on the same `docker run`; the allocated TTY
+keeps the container's default bash alive in the background. Running `ros2 launch …`
+inside an `exec` session still stops cleanly on one `Ctrl-C` while the container
+itself stays up for the next `exec`.
+
+## Build
+
+Inside the container:
 
 ```bash
 cd /felix-ai-ros
 colcon build --symlink-install
 source install/setup.bash
-
-./start_ros2.sh                 # uses /dev/myserial
-./start_ros2.sh /dev/ttyUSB0    # custom serial port
 ```
 
-`start_ros2.sh` launches the bringup stack in the background (via
-`ros2 launch felix_bringup felix.launch.py`) and the keyboard teleop in the
-foreground. `ros2 launch` owns Ctrl-C and shuts everything down cleanly, zeroing
-the motors.
+## Run — full stack (mapping & driving)
 
-### Bringup
-
-`felix_bringup felix.launch.py` composes the full base stack: the **bridge**, the
-**ToF** node, and — when `use_ekf:=true` (the default) — the `felix_localization`
-**EKF** that fuses `/odom` + `/imu/data` into `odom→base_link`. With the EKF on,
-the bridge's own `odom→base_link` TF is suppressed so the two don't fight, and a
-temporary `base_link→imu_link` static TF is published.
+The everyday workflow. One launch brings up **base + EKF + description + SLAM +
+camera + Foxglove bridge** as children of a single `ros2 launch`, so **one
+`Ctrl-C` cleanly stops all of it** (no orphaned nodes). Drive from the Foxglove
+**Teleop** panel and watch the map + FPV in the same UI — no teleop terminal
+needed.
 
 ```bash
-ros2 launch felix_bringup felix.launch.py                       # bridge + tof + EKF
-ros2 launch felix_bringup felix.launch.py port:=/dev/ttyUSB0    # custom serial port
-ros2 launch felix_bringup felix.launch.py use_ekf:=false        # raw bridge odom TF, no EKF
-ros2 run felix_base calibrate limits                            # calibration CLI
+ros2 launch felix_bringup mapping.launch.py     # everything; drive + map + FPV in Foxglove
 ```
 
-The EKF needs `ros-humble-robot-localization` installed (see `BUILD_NOTES.md`).
+Everything defaults **on**; drop any piece with its `:=false` toggle without
+losing the rest:
+
+```bash
+ros2 launch felix_bringup mapping.launch.py camera:=false           # skip camera
+ros2 launch felix_bringup mapping.launch.py slam:=false             # base + camera only
+ros2 launch felix_bringup mapping.launch.py foxglove:=false         # headless, no UI bridge
+ros2 launch felix_bringup mapping.launch.py serial_baudrate:=256000 # if lidar gives no /scan (A2/S1)
+ros2 launch felix_bringup mapping.launch.py port:=/dev/ttyUSB0      # custom ROSMASTER port
+```
+
+Args: `port` (default `/dev/myserial`), `use_ekf`, `slam`, `camera`, `foxglove`
+(all `true`), `serial_baudrate` (`115200` for A1; `256000` for A2/S1). Needs
+`ros-humble-robot-localization` (EKF) and the `foxglove_bridge` package installed
+(see `BUILD_NOTES.md`).
+
+## Run — base only
+
+For motion/odometry work without lidar, camera, or UI. `felix.launch.py` composes
+the **bridge**, the **ToF** node, the `felix_description` URDF (TF), and — when
+`use_ekf:=true` (the default) — the `felix_localization` **EKF** that fuses
+`/odom` + `/imu/data` into `odom→base_link`. With the EKF on, the bridge's own
+`odom→base_link` TF is suppressed so the two don't fight (`base_link→imu_link`
+comes from the URDF).
+
+```bash
+ros2 launch felix_bringup felix.launch.py                       # bridge + tof + description + EKF
+ros2 launch felix_bringup felix.launch.py port:=/dev/ttyUSB0    # custom serial port
+ros2 launch felix_bringup felix.launch.py use_ekf:=false        # raw bridge odom TF, no EKF
+```
+
+Or `./start_ros2.sh [port]` — launches `felix.launch.py` in the background and
+the keyboard teleop in the foreground (uses `/dev/myserial` by default). `ros2
+launch` owns Ctrl-C and shuts everything down cleanly, zeroing the motors.
 
 ### Teleop
 
-Teleop runs in its **own terminal** (it reads raw keystrokes, which it can't do
-under `ros2 launch`). Both options publish `geometry_msgs/Twist` on `/cmd_vel`;
-the bridge clamps every command to the configured envelope and stops the motors
-if commands go silent (see *Notes*), so either is safe to drive with.
+With `mapping.launch.py` you drive from the Foxglove **Teleop** panel (it
+publishes `geometry_msgs/Twist` on `/cmd_vel`) — no terminal teleop required. The
+keyboard nodes below still work in their **own terminal** if you prefer (they
+read raw keystrokes, which they can't do under `ros2 launch`). The bridge clamps
+every command to the configured envelope and stops the motors if commands go
+silent (see *Notes*), so all three are safe to drive with.
 
 **Custom node** (`felix_base teleop`) — limits come from `config.yml`:
 
@@ -154,8 +209,9 @@ The bridge publishes wheel-encoder odometry on `/odom` and broadcasts the
 dead reckoning** — it drifts, and heading is the least reliable component (wheel
 slip is unobserved). The IMU is published so the `felix_localization`
 `robot_localization` EKF can fuse gyro yaw on top of the wheel odometry into a
-smoother `odom→base_link` — enabled by default in bringup (`use_ekf:=true`). The
-remaining steps before SLAM are `felix_description` (URDF/TF) and the RPLIDAR.
+smoother `odom→base_link` — enabled by default in bringup (`use_ekf:=true`).
+`felix_description` (URDF/TF) and the RPLIDAR are now in place, so this odometry
+feeds `felix_slam` (`slam_toolbox`) in the full-stack launch above.
 
 ## Calibration
 
@@ -193,7 +249,9 @@ Put the resulting values into `config.yml` (`motor_map`, `motor_sign`,
 
 ## Roadmap
 
-- **RPLIDAR** (on `/dev/rplidar`) → `felix_slam` (slam_toolbox), once
-  `felix_description` (URDF/TF) and EKF-fused odometry are in place.
+Done: `felix_description` (URDF/TF), `felix_slam` (RPLIDAR + slam_toolbox), and
+`felix_camera` (CSI → Foxglove FPV) — all composed by `mapping.launch.py`.
+
+- **Nav2** autonomy on top of the live map + EKF odometry.
 - **YOLO** → `felix_perception` (`vision_msgs/Detection2DArray`).
 - **WebRTC video** → `felix_streaming` (likely its own process/container).

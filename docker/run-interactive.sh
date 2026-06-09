@@ -35,6 +35,12 @@ else
 	SUDO="sudo"
 fi
 
+# Foreground by default; DETACH=1 runs the container in the background
+# (-dit: the allocated TTY keeps the default bash alive). Enter it with:
+#   docker exec -it felix-ai bash
+RUN_MODE="-it"
+[ "${DETACH:-0}" = "1" ] && RUN_MODE="-dit"
+
 # run the container
 ARCH=$(uname -i)
 
@@ -48,7 +54,7 @@ if [ $ARCH = "aarch64" ]; then
 
 	#--volume $ROOT/data:/data \
 	#$SUDO docker run --runtime nvidia -it --rm --network host -e ROBOT=${ROBOT} \
-	$SUDO docker run --runtime nvidia -it --rm \
+	$SUDO docker run --runtime nvidia $RUN_MODE --rm \
 		--network host --ipc host \
 		-e ROBOT=${ROBOT} \
 		-e ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-42} \
@@ -74,21 +80,28 @@ if [ $ARCH = "aarch64" ]; then
 		$DATA_VOLUME $DISPLAY_DEVICE $V4L2_DEVICES \
 		"$@"
 
-		# --device /dev/myserial 
-		# --device /dev/mypico 
-		#--device /dev/ttyACM0 
-		#--device /dev/ttyUSB0 
+		# --device /dev/myserial
+		# --device /dev/mypico
+		#--device /dev/ttyACM0
+		#--device /dev/ttyUSB0
 
 elif [ $ARCH = "x86_64" ]; then
 
 	set -x
 
-	$SUDO docker run --gpus all -it --rm --network=host \
+	$SUDO docker run --gpus all $RUN_MODE --rm --network=host \
 		--shm-size=8g \
 		--ulimit memlock=-1 \
 		--ulimit stack=67108864 \
 		--env NVIDIA_DRIVER_CAPABILITIES=all \
 		--volume $ROOT/data:/data \
 		$DATA_VOLUME $DISPLAY_DEVICE $V4L2_DEVICES \
-		"$@"	
+		"$@"
+fi
+
+if [ "${DETACH:-0}" = "1" ]; then
+	set +x
+	echo "Container 'felix-ai' started detached."
+	echo "  enter:  docker exec -it felix-ai bash"
+	echo "  stop:   docker stop felix-ai"
 fi

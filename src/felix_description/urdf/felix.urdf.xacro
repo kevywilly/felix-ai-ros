@@ -4,6 +4,7 @@
 
   TF tree:  base_footprint -> base_link -> imu_link
                                         -> laser
+                                        -> camera_link
 
   base_link sits at the chassis rotation centre (the point the EKF publishes
   odom -> base_link for); base_footprint is its ground projection. robot_state_
@@ -39,17 +40,34 @@
   <xacro:property name="laser_z"   value="0.0665"/>
   <xacro:property name="laser_yaw" value="3.14159265"/>
 
-  <!-- IMU mount, base_link -> imu_link.  Identity for now: the EKF only fuses
-       gyro yaw-rate, which is invariant to rotation about the shared z-axis, so
-       this does not affect localisation. The board's in-plane accel axes are
-       left-handed vs the robot (IMU +y ~ forward, +x ~ left); only encode the
-       real roll/pitch/yaw here if/when you start fusing acceleration. -->
+  <!-- IMU mount, base_link -> imu_link.  Identity: the EKF only fuses gyro
+       yaw-rate, which is invariant to rotation about the shared z-axis, so this
+       does not affect localisation. IMU re-mounted x-forward + centered (2026-06).
+       The raw gyro-Z is board-intrinsically inverted vs REP-103 and is corrected
+       in bridge_node._publish_imu (not here). Accel is published raw and unfused;
+       encode real roll/pitch/yaw here only if/when you start fusing acceleration. -->
   <xacro:property name="imu_x"     value="0.0"/>
   <xacro:property name="imu_y"     value="0.0"/>
   <xacro:property name="imu_z"     value="0.0"/>
   <xacro:property name="imu_roll"  value="0.0"/>
   <xacro:property name="imu_pitch" value="0.0"/>
   <xacro:property name="imu_yaw"   value="0.0"/>
+
+  <!-- CAMERA mount, base_link -> camera_link.  Measured 2026-06-08:
+       horizontally centred (y=0). z=0: the camera centre is wheel_radius
+       (0.0485 m) above the ground, which is exactly base_link's height (axle
+       height), so the offset relative to base_link is zero.
+       x: the camera base sits ~10 mm behind the front-most point of the front
+       wheels. Front axle = wheel_base/2 = 0.095 m forward; front-most wheel point
+       = 0.095 + wheel_radius (0.0485) = 0.1435 m; minus 0.010 = 0.1335 m.
+       Orientation is REP-103 (x forward) like base_link; the REP-105 optical
+       frame (z forward) gets added when felix_perception lands. -->
+  <xacro:property name="camera_x"     value="0.1335"/>
+  <xacro:property name="camera_y"     value="0.0"/>
+  <xacro:property name="camera_z"     value="0.0"/>
+  <xacro:property name="camera_roll"  value="0.0"/>
+  <xacro:property name="camera_pitch" value="0.0"/>
+  <xacro:property name="camera_yaw"   value="0.0"/>
 
   <!-- ===================== Materials ===================== -->
   <material name="felix_grey"><color rgba="0.25 0.27 0.30 1.0"/></material>
@@ -92,6 +110,20 @@
     <parent link="base_link"/>
     <child link="laser"/>
     <origin xyz="${laser_x} ${laser_y} ${laser_z}" rpy="0 0 ${laser_yaw}"/>
+  </joint>
+
+  <link name="camera_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.025 0.09 0.025"/></geometry>
+      <material name="felix_black"/>
+    </visual>
+  </link>
+  <joint name="base_link_to_camera" type="fixed">
+    <parent link="base_link"/>
+    <child link="camera_link"/>
+    <origin xyz="${camera_x} ${camera_y} ${camera_z}"
+            rpy="${camera_roll} ${camera_pitch} ${camera_yaw}"/>
   </joint>
 
 </robot>
