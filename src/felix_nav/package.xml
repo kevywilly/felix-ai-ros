@@ -1,21 +1,25 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>felix_slam</name>
+  <name>felix_nav</name>
   <version>0.1.0</version>
   <description>
-    2D SLAM for Felix: the RPLIDAR driver (/scan in the laser frame) feeding
-    slam_toolbox, which builds the map and publishes map->odom on top of the
-    EKF's odom->base_link. Assumes felix_bringup (base + EKF + description) is
-    already running.
+    Autonomous navigation for Felix: the nav2 navigation servers (planner,
+    MPPI controller, behaviors, BT navigator) on top of AMCL localization
+    (felix_slam) and the EKF (felix_localization). Holonomic config -- MPPI
+    uses the mecanum chassis's strafing. Assumes a map is already being served
+    and localized (felix_bringup localization.launch.py).
   </description>
   <maintainer email="kevin.williams@sidusa.com">Kevin Williams</maintainer>
   <license>Proprietary</license>
 
-  <exec_depend>rplidar_ros</exec_depend>
-  <exec_depend>slam_toolbox</exec_depend>
-  <exec_depend>nav2_map_server</exec_depend>
-  <exec_depend>nav2_amcl</exec_depend>
+  <exec_depend>nav2_controller</exec_depend>
+  <exec_depend>nav2_mppi_controller</exec_depend>
+  <exec_depend>nav2_planner</exec_depend>
+  <exec_depend>nav2_navfn_planner</exec_depend>
+  <exec_depend>nav2_behaviors</exec_depend>
+  <exec_depend>nav2_bt_navigator</exec_depend>
+  <exec_depend>nav2_costmap_2d</exec_depend>
   <exec_depend>nav2_lifecycle_manager</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>

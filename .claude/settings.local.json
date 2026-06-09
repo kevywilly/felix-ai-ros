@@ -6,7 +6,9 @@
       "Bash(xargs cat)",
       "Read(//dev/**)",
       "Read(//etc/udev/rules.d/**)",
-      "Bash(chown 1000:1000 src/felix_slam/config/slam_toolbox.yaml)"
+      "Bash(chown 1000:1000 src/felix_slam/config/slam_toolbox.yaml)",
+      "Bash(bash *)",
+      "Read(//root/**)"
     ]
   }
 }

@@ -15,6 +15,7 @@
   <exec_depend>felix_localization</exec_depend>
   <exec_depend>felix_description</exec_depend>
   <exec_depend>felix_slam</exec_depend>
+  <exec_depend>felix_nav</exec_depend>
   <exec_depend>felix_camera</exec_depend>
   <exec_depend>foxglove_bridge</exec_depend>
   <exec_depend>launch</exec_depend>

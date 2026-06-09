@@ -1,0 +1,72 @@
+# AMCL (adaptive Monte-Carlo localization) for Felix, against a SAVED map.
+#
+# This is the "run mode" counterpart to slam_toolbox mapping: instead of building
+# a map, nav2_map_server serves a static occupancy grid (the .pgm/.yaml you saved)
+# and AMCL localizes the robot on it, publishing the SAME correction slam_toolbox
+# would (map -> odom) on top of the EKF's odom -> base_link.
+#
+#   TF chain at runtime:  map -> odom (AMCL) -> base_link (EKF) -> laser (URDF)
+#
+# Run felix_bringup (base + EKF + description) and this -- NOT slam.launch.py at
+# the same time; both publish map -> odom and would fight.
+#
+# AMCL needs an initial pose to converge. It starts at initial_pose below (the
+# map origin by default); if the robot does not start there, drop a "2D Pose
+# Estimate" in Foxglove/rviz (publishes /initialpose) to seed it correctly.
+
+amcl:
+  ros__parameters:
+    use_sim_time: false
+
+    # --- Frames & topic (must match the rest of the stack) ---
+    base_frame_id: base_link        # EKF's child frame
+    odom_frame_id: odom             # EKF's parent frame; AMCL corrects map -> odom
+    global_frame_id: map
+    scan_topic: scan                # RPLIDAR (/scan), frame_id "laser" via URDF
+
+    # --- Motion model ---
+    # Felix is mecanum (omnidirectional): it strafes, so vy != 0. The differential
+    # model assumes no lateral motion and would mis-predict strafes -- use Omni.
+    robot_model_type: "nav2_amcl::OmniMotionModel"
+    # Odometry noise (how much AMCL trusts odom between scans). Tune up if the
+    # particle cloud lags real motion, down if it spreads too fast.
+    alpha1: 0.2     # rotation noise from rotation
+    alpha2: 0.2     # rotation noise from translation
+    alpha3: 0.2     # translation noise from translation
+    alpha4: 0.2     # translation noise from rotation
+    alpha5: 0.2     # strafe noise (omni only)
+
+    # --- Particle filter ---
+    min_particles: 500
+    max_particles: 2000
+    pf_err: 0.05
+    pf_z: 0.99
+    recovery_alpha_slow: 0.0        # 0 = disabled; raise (~0.001) to enable
+    recovery_alpha_fast: 0.0        #   random-particle recovery if kidnapped
+    resample_interval: 1
+    update_min_d: 0.2               # m of travel before a filter update
+    update_min_a: 0.2               # rad of rotation before a filter update
+
+    # --- Laser (likelihood-field) model. Match the RPLIDAR A1 envelope. ---
+    laser_model_type: likelihood_field
+    laser_min_range: 0.2
+    laser_max_range: 12.0
+    max_beams: 60
+    z_hit: 0.5
+    z_short: 0.05
+    z_max: 0.05
+    z_rand: 0.5
+    sigma_hit: 0.2
+    laser_likelihood_max_dist: 2.0
+
+    # --- TF timing ---
+    transform_tolerance: 1.0
+    save_pose_rate: 0.5
+
+    # --- Initial pose (map origin; override via /initialpose in Foxglove) ---
+    set_initial_pose: true
+    initial_pose:
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      yaw: 0.0

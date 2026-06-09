@@ -29,16 +29,18 @@
   <!-- x/y/z = lidar centre offset from base_link; yaw = rotation of the lidar's
        0-degree ray relative to robot forward (+x). If the scan appears rotated
        in rviz/the map, adjust laser_yaw (RPLIDAR zero often faces the cable). -->
-  <!-- Measured 2026-06-07: 0.08 m forward, centred, beam 0.115 m above floor.
-       laser_z is relative to base_link (axle height), = 0.115 - wheel_radius.
-       laser_yaw = pi: the RPLIDAR is mounted rotated 180deg (zero-ray faces
-       backward). Verified live: a wall squarely ~1m in FRONT of the robot
-       appeared at lidar bearing ~180deg; without this the map drifted badly
-       (scans fought the odometry, robot appeared to drive through walls). -->
-  <xacro:property name="laser_x"   value="0.08"/>
+  <!-- laser_x measured 2026-06-08: 2.5 in = 0.0635 m, the forward distance from
+       base_link's origin (chassis rotation centre) to the lidar's scan-centre axis.
+       centred (laser_y = 0); beam 0.115 m above floor, so laser_z = 0.115 -
+       wheel_radius relative to base_link (axle height).
+       laser_yaw = 0: the RPLIDAR was physically re-oriented 2026-06-08 so its
+       zero-ray faces FORWARD (+x), so no yaw correction is needed. (Previously it
+       was mounted rotated 180deg with the zero-ray facing backward, which needed
+       laser_yaw = pi.) -->
+  <xacro:property name="laser_x"   value="0.0635"/>
   <xacro:property name="laser_y"   value="0.0"/>
   <xacro:property name="laser_z"   value="0.0665"/>
-  <xacro:property name="laser_yaw" value="3.14159265"/>
+  <xacro:property name="laser_yaw" value="0.0"/>
 
   <!-- IMU mount, base_link -> imu_link.  Identity: the EKF only fuses gyro
        yaw-rate, which is invariant to rotation about the shared z-axis, so this

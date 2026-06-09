@@ -1,7 +1,8 @@
 # felix-ai-ros
 
-Keyboard teleoperation and base driver for a **custom 4-wheel mecanum robot**
-driven by a Yahboom ROSMASTER board on an NVIDIA Jetson Orin (ROS 2 Humble).
+Base driver, teleop, and an autonomy stack (odometry + IMU → EKF → SLAM →
+localization → **Nav2**) for a **custom 4-wheel mecanum robot** driven by a Yahboom
+ROSMASTER board on an NVIDIA Jetson Orin (ROS 2 Humble).
 
 Because the chassis is custom (not a stock Yahboom frame), the board firmware's
 built-in kinematics (`set_car_motion`) do not apply. Instead this project
@@ -17,10 +18,11 @@ The repo root is a colcon workspace; packages live under `src/`:
 |---------|------|
 | `felix_base` | Base driver: hardware bridge (`/cmd_vel`→motors), odometry + IMU, ToF array, keyboard teleop, mecanum kinematics, and `config/config.yml`. |
 | `felix_localization` | `robot_localization` EKF fusing `/odom` + `/imu/data` → `odom→base_link` (`config/ekf.yaml`). |
-| `felix_description` | URDF/TF: publishes `base_footprint→base_link→{imu_link, laser}` on `/tf_static` (the EKF and SLAM consume it). |
-| `felix_slam` | RPLIDAR driver + `slam_toolbox` → live map. |
+| `felix_description` | URDF/TF: publishes `base_footprint→base_link→{imu_link, laser, camera_link}` on `/tf_static` (the EKF, SLAM, and Nav2 consume it). |
+| `felix_slam` | RPLIDAR driver + **mapping** (`slam_toolbox` → live map) **and localization** (`nav2_map_server` + **AMCL** on a saved map → `map→odom`). |
+| `felix_nav` | **Autonomous navigation**: the Nav2 servers (NavFn planner, **MPPI** holonomic controller, recovery behaviors, BT navigator) → `/cmd_vel`. |
 | `felix_camera` | CSI camera → compressed image (FPV in Foxglove). |
-| `felix_bringup` | Top-level launch composition + params. `mapping.launch.py` brings up the **full stack** in one process; `felix.launch.py` is the base stack alone. |
+| `felix_bringup` | Top-level launch composition + params. Three one-shot stacks: `mapping.launch.py` (build a map), `localization.launch.py` (drive on a saved map), `navigation.launch.py` (autonomous). `felix.launch.py` is the base stack alone. |
 
 Inside `felix_base`:
 
@@ -38,11 +40,24 @@ Inside `felix_base`:
 ## Topics & TF
 
 ```
-teleop ──/cmd_vel (Twist)──► bridge_node ──► set_motor() ──► motors
+teleop / Nav2 ──/cmd_vel (Twist)──► bridge_node ──► set_motor() ──► motors
                               bridge_node ──/odom (Odometry)──►   + TF odom→base_link
                               bridge_node ──/imu/data (Imu)──►
                               tof_array_node ──/tof (Int16MultiArray)──►
 ```
+
+Full TF chain when localizing/navigating on a map:
+
+```
+map ──► odom ──► base_link ──► {imu_link, laser, camera_link}
+ │        │          │
+ │        │          └─ felix_localization EKF  (fuses /odom vx,vy + /imu gyro-Z)
+ │        └──────────── (the EKF's odom frame; allowed to drift)
+ └─ slam_toolbox (mapping) OR AMCL (localization)  — the drift correction
+```
+
+When the EKF is on, the bridge's own `odom→base_link` TF is suppressed so the two
+don't fight. `base_link→{imu_link, laser, camera_link}` come from the URDF.
 
 ## Requirements
 
@@ -115,6 +130,50 @@ Args: `port` (default `/dev/myserial`), `use_ekf`, `slam`, `camera`, `foxglove`
 (all `true`), `serial_baudrate` (`115200` for A1; `256000` for A2/S1). Needs
 `ros-humble-robot-localization` (EKF) and the `foxglove_bridge` package installed
 (see `BUILD_NOTES.md`).
+
+## Run — localization (drive on a saved map)
+
+Once you've built and **saved** a map (`maps/felix_map.yaml` + `.pgm`), this is the
+run-mode twin of mapping: instead of `slam_toolbox` building a map, `nav2_map_server`
+serves the saved one and **AMCL** localizes the robot on it, publishing the same
+`map→odom` correction. Same one-shot composition (base + EKF + description + RPLIDAR +
+camera + Foxglove), so one `Ctrl-C` stops it all. Drive from the Foxglove Teleop panel.
+
+```bash
+ros2 launch felix_bringup localization.launch.py                       # default map
+ros2 launch felix_bringup localization.launch.py map:=/felix-ai-ros/maps/other.yaml
+ros2 launch felix_bringup localization.launch.py camera:=false         # skip camera
+```
+
+After launch, **seed AMCL** with a *2D Pose Estimate* in Foxglove/rviz (click the
+robot's real location + heading; publishes `/initialpose`), then drive a little so
+the particle cloud converges. AMCL starts at the map origin otherwise. Args:
+`map` (default `maps/felix_map.yaml`), `port`, `localize`, `camera`, `foxglove`,
+`serial_baudrate`. Do **not** run this together with `mapping.launch.py` — both
+publish `map→odom`. The map is mecanum-aware: AMCL uses the `OmniMotionModel`.
+
+## Run — navigation (autonomous)
+
+The full autonomy stack: it reuses `localization.launch.py` and adds the `felix_nav`
+Nav2 servers on top, so you can send a goal and the robot plans a path and drives
+there. Because Felix is holonomic, the controller is **MPPI with `motion_model: Omni`**
+— it **strafes** toward goals instead of always turning to face them.
+
+```bash
+ros2 launch felix_bringup navigation.launch.py                         # default map
+ros2 launch felix_bringup navigation.launch.py map:=/felix-ai-ros/maps/other.yaml
+ros2 launch felix_bringup navigation.launch.py navigation:=false       # = localization only
+```
+
+To navigate, in Foxglove: **(1)** drop a *2D Pose Estimate* to seed AMCL; **(2)** use
+the *Nav2 Goal* tool to click a destination. The robot plans (NavFn global), follows
+with MPPI + local costmap, and runs recovery behaviors (spin/back-up/wait) if stuck.
+The controller publishes `/cmd_vel` straight into the bridge's clamp/watchdog.
+
+Speeds in `felix_nav/config/nav2_params.yaml` are **conservative** (vx/vy 0.45 m/s of
+the 1.04 max, wz 1.2 of 4.58) — raise them once it behaves. The costmap footprint is
+the chassis box (`0.22 × 0.28`). First runs: short goals, open floor, clear of stairs;
+`Ctrl-C` drops `/cmd_vel` and the bridge stops the motors.
 
 ## Run — base only
 
@@ -249,9 +308,12 @@ Put the resulting values into `config.yml` (`motor_map`, `motor_sign`,
 
 ## Roadmap
 
-Done: `felix_description` (URDF/TF), `felix_slam` (RPLIDAR + slam_toolbox), and
-`felix_camera` (CSI → Foxglove FPV) — all composed by `mapping.launch.py`.
+Done: `felix_description` (URDF/TF), `felix_slam` (RPLIDAR + slam_toolbox **mapping**
+and `nav2_map_server` + AMCL **localization**), `felix_nav` (**Nav2** autonomy:
+NavFn + MPPI holonomic + behaviors), and `felix_camera` (CSI → Foxglove FPV) —
+composed by `mapping` / `localization` / `navigation` one-shots.
 
-- **Nav2** autonomy on top of the live map + EKF odometry.
 - **YOLO** → `felix_perception` (`vision_msgs/Detection2DArray`).
 - **WebRTC video** → `felix_streaming` (likely its own process/container).
+- **Nav2 tuning**: raise MPPI speed limits and tune critic weights from the
+  conservative defaults once autonomous driving is verified on hardware.
