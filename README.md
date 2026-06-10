@@ -165,10 +165,15 @@ ros2 launch felix_bringup navigation.launch.py map:=/felix-ai-ros/maps/other.yam
 ros2 launch felix_bringup navigation.launch.py navigation:=false       # = localization only
 ```
 
-To navigate, in Foxglove: **(1)** drop a *2D Pose Estimate* to seed AMCL; **(2)** use
-the *Nav2 Goal* tool to click a destination. The robot plans (NavFn global), follows
+To navigate, in Foxglove (3D panel must be in the `map` frame): **(1)** drop a *2D Pose
+Estimate* to seed AMCL (publishes `/initialpose`); **(2)** with the *Publish → Pose*
+tool, click-drag a destination — but first **set that tool's topic to `/goal_pose`**.
+Foxglove defaults it to the ROS 1 name `/move_base_simple/goal`, which Nav2 ignores, so
+the pin silently goes nowhere until you change it. Nav2's `bt_navigator` subscribes to
+`/goal_pose` natively (no relay needed). The robot then plans (NavFn global), follows
 with MPPI + local costmap, and runs recovery behaviors (spin/back-up/wait) if stuck.
-The controller publishes `/cmd_vel` straight into the bridge's clamp/watchdog.
+The controller publishes `/cmd_vel` straight into the bridge's clamp/watchdog. (rviz
+users: its native *Nav2 Goal* tool targets the action directly.)
 
 Speeds in `felix_nav/config/nav2_params.yaml` are **conservative** (vx/vy 0.45 m/s of
 the 1.04 max, wz 1.2 of 4.58) — raise them once it behaves. The costmap footprint is

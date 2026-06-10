@@ -2,15 +2,17 @@
 <!--
   Felix mecanum chassis description.
 
-  TF tree:  base_footprint -> base_link -> imu_link
-                                        -> laser
-                                        -> camera_link
+  TF tree:  base_link -> base_footprint   (ground projection, below)
+                      -> imu_link
+                      -> laser
+                      -> camera_link
 
-  base_link sits at the chassis rotation centre (the point the EKF publishes
-  odom -> base_link for); base_footprint is its ground projection. robot_state_
-  publisher turns the fixed joints below into /tf_static, which is what the EKF
-  (base_link -> imu_link) and SLAM (base_link -> laser) consume; this replaces
-  the temporary static_transform_publisher that bringup used before.
+  base_link is the URDF ROOT and the chassis rotation centre (the point the EKF
+  publishes odom -> base_link for). Everything else, including base_footprint (the
+  ground projection), hangs off it, so base_link has exactly one parent (odom),
+  not two. robot_state_publisher turns the fixed joints below into /tf_static, which
+  is what the EKF (base_link -> imu_link) and SLAM (base_link -> laser) consume; this
+  replaces the temporary static_transform_publisher that bringup used before.
 
   >>> EDIT THE MOUNT OFFSETS BELOW TO YOUR MEASURED VALUES <<<
   All offsets are in metres / radians, in REP-103 base_link axes:
@@ -87,11 +89,16 @@
     </visual>
   </link>
 
-  <joint name="base_footprint_to_base_link" type="fixed">
-    <parent link="base_footprint"/>
-    <child link="base_link"/>
-    <!-- Lift base_link to axle height above the ground projection. -->
-    <origin xyz="0 0 ${wheel_radius}" rpy="0 0 0"/>
+  <!-- base_footprint is a CHILD of base_link, not its parent: the EKF publishes
+       odom -> base_link, so base_link is the tree node odom drives. If base_footprint
+       parented base_link here, base_link would have two parents (odom + base_footprint),
+       an illegal TF tree that places the body and the sensors via different paths
+       (body mirrors/drifts away from the laser). base_footprint is the ground
+       projection, so it sits wheel_radius BELOW base_link. -->
+  <joint name="base_link_to_base_footprint" type="fixed">
+    <parent link="base_link"/>
+    <child link="base_footprint"/>
+    <origin xyz="0 0 ${-wheel_radius}" rpy="0 0 0"/>
   </joint>
 
   <link name="imu_link"/>

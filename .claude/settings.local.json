@@ -8,7 +8,10 @@
       "Read(//etc/udev/rules.d/**)",
       "Bash(chown 1000:1000 src/felix_slam/config/slam_toolbox.yaml)",
       "Bash(bash *)",
-      "Read(//root/**)"
+      "Read(//root/**)",
+      "Bash(chown 1000:1000 src/felix_localization/config/ekf.yaml)",
+      "Bash(chown -R 1000:1000 /.claude/projects/-felix-ai-ros/memory)",
+      "Bash(grep -nA20 \"entry_points\" src/felix_base/setup.py)"
     ]
   }
 }

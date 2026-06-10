@@ -4,9 +4,10 @@ Guidance for AI agents working in this repository.
 
 ## What this is
 
-Keyboard teleop **and base driver** for a **custom 4-wheel mecanum robot** on a
-Yahboom ROSMASTER board (NVIDIA Jetson Orin, ROS 2 Humble), organized as a colcon
-workspace. See `README.md` for full docs.
+Base driver, teleop, and a full **autonomy stack** (odometry + IMU → EKF → SLAM /
+AMCL → **Nav2**) for a **custom 4-wheel mecanum robot** on a Yahboom ROSMASTER
+board (NVIDIA Jetson Orin, ROS 2 Humble), organized as a colcon workspace. See
+`README.md` for full docs.
 
 ## Workspace layout
 
@@ -19,9 +20,17 @@ into the Docker container — no separate `felix_ws`). Packages live under `src/
   `config/config.yml`.
 - **`felix_localization`** — `robot_localization` EKF fusing `/odom` (wheel
   `vx`/`vy`) + `/imu/data` (gyro yaw rate) into a smooth `odom→base_link`.
-- **`felix_bringup`** — top-level launch composition + params (depends on
-  `felix_base` + `felix_localization`). Future subsystems (`felix_description`,
-  `felix_slam`, `felix_perception`, `felix_streaming`) compose in here.
+- **`felix_description`** — URDF/TF: publishes `base_footprint→base_link→{imu_link,
+  laser, camera_link}` on `/tf_static` (the EKF, SLAM, and Nav2 consume it).
+- **`felix_slam`** — RPLIDAR driver + **mapping** (`slam_toolbox`) **and
+  localization** (`nav2_map_server` + **AMCL** on a saved map → `map→odom`).
+- **`felix_nav`** — **Nav2** autonomy: NavFn planner, **MPPI** holonomic
+  controller, recovery behaviors, BT navigator → `/cmd_vel`.
+- **`felix_camera`** — CSI camera → compressed image (Foxglove FPV).
+- **`felix_bringup`** — top-level launch composition + params, depending on all of
+  the above. Four stacks: `felix.launch.py` (base alone), `mapping.launch.py`,
+  `localization.launch.py`, `navigation.launch.py`. Future subsystems
+  (`felix_perception`, `felix_streaming`) compose in here.
 
 Build & run (from the repo root):
 
@@ -77,10 +86,11 @@ gone). See `BUILD_NOTES.md` for the dev loop and the required setuptools pin.
 - **Fusion** is the `felix_localization` EKF (`config/ekf.yaml`): wheel `vx`/`vy`
   + IMU gyro yaw-rate → `odom→base_link`. When the EKF runs (`use_ekf:=true`,
   the default), `felix_bringup` sets the bridge's `publish_tf:=false` so they
-  don't both publish that transform, and adds a temporary identity
-  `base_link→imu_link` static TF (the EKF needs it to consume the IMU; replaced
-  by the URDF in `felix_description` later — yaw-rate is invariant to it for now).
-  Needs `ros-humble-robot-localization` installed.
+  don't both publish that transform. The `base_link→imu_link` (and `→laser`)
+  transforms now come from the `felix_description` URDF on `/tf_static` (this
+  replaced the temporary identity `static_transform_publisher` we used early on).
+  Needs `ros-humble-robot-localization` installed. EKF runs at 50 Hz so the
+  `odom→base_link` TF stays fresh for AMCL.
 
 ## Calibration values (in config.yml)
 
@@ -106,6 +116,14 @@ gone). See `BUILD_NOTES.md` for the dev loop and the required setuptools pin.
   (ROS `setup.bash` trips `nounset`). Keep that if editing the script.
 - Open-loop means real speed drifts with battery/load; `velocity_scale` only
   corrects the average. Don't expect exact velocities without encoder feedback.
+- **Foxglove nav pins are plain topic publishes** (no rviz tools). Start pin =
+  *2D Pose Estimate* → `/initialpose` (AMCL). Goal pin = *Publish → Pose*, but its
+  topic **defaults to the ROS 1 `/move_base_simple/goal`** — change it to
+  `/goal_pose`, which `bt_navigator` subscribes to natively (do NOT add a relay).
+  The 3D panel must be in the `map` frame for either to land correctly.
+- AMCL's `Failed to transform initial pose in time ... extrapolation into the
+  future` on a start pin is **cosmetic** — it falls back to identity and sets the
+  pose anyway. Verify via `/amcl_pose` / the particle cloud, not the log.
 
 ## Quick checks
 
@@ -117,12 +135,14 @@ colcon build --symlink-install
 
 ## Hardware / roadmap
 
-- ROSMASTER board on `/dev/myserial`; **RPLIDAR on `/dev/rplidar`** (separate node,
-  for SLAM). Encoders confirmed reporting; the board has an IMU.
-- Planned packages: `felix_description` (URDF/TF, needed for SLAM — also lands
-  the real `base_link→imu_link` transform), `felix_slam` (slam_toolbox + rplidar
-  driver), `felix_perception` (YOLO → `vision_msgs`), `felix_streaming` (WebRTC
-  video).
+- ROSMASTER board on `/dev/myserial`; **RPLIDAR on `/dev/rplidar`** (the
+  `felix_slam` driver node). Encoders confirmed reporting; the board has an IMU.
+- **Done:** `felix_description` (URDF/TF), `felix_slam` (RPLIDAR + slam_toolbox
+  mapping and `nav2_map_server` + AMCL localization), `felix_nav` (Nav2 autonomy:
+  NavFn + MPPI holonomic + behaviors), `felix_camera` (CSI → Foxglove FPV).
+- **Planned:** `felix_perception` (YOLO → `vision_msgs`), `felix_streaming` (WebRTC
+  video). Nav2 tuning: raise MPPI speed limits / tune critics off the conservative
+  defaults once autonomy is verified on hardware.
 
 ## Safety
 

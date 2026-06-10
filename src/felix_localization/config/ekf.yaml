@@ -15,7 +15,9 @@
 
 ekf_filter_node:
   ros__parameters:
-    frequency: 30.0
+    frequency: 50.0                  # fresher odom->base_link TF (~20ms worst-case
+                                     # gap) so AMCL /initialpose lookups don't
+                                     # extrapolate into the future on a fresh pin
     sensor_timeout: 0.1
     two_d_mode: true                 # ground robot: zero z, roll, pitch
     publish_tf: true                 # EKF owns odom -> base_link

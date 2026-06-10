@@ -10,7 +10,16 @@ launch adds the nav2 servers that turn a goal pose into /cmd_vel:
   * bt_navigator        behavior-tree orchestration (NavigateToPose / ThroughPoses)
   * lifecycle_manager   configures + activates the above
 
-Send goals from the Foxglove/rviz "Nav2 Goal" tool (the /navigate_to_pose action).
+Send goals by dropping a goal pin in Foxglove: 3D panel -> Publish -> Pose, then
+click-drag on the map. bt_navigator subscribes to /goal_pose natively (a built-in
+nav2 PoseStamped -> NavigateToPose path), so no relay is needed -- a published
+/goal_pose drives the robot directly.
+
+GOTCHA: Foxglove's Pose publish tool defaults its topic to /move_base_simple/goal
+(the ROS 1 move_base name). nav2 listens on /goal_pose -- you MUST change the
+publish topic to /goal_pose or the pin silently goes nowhere (0 subscribers on
+the default). The 3D panel must also be in the `map` frame so the goal lands in
+map coordinates. (rviz users: its native Nav2 Goal tool already targets the action.)
 
 Args:
   params      nav2 params yaml (default: felix_nav/config/nav2_params.yaml)
