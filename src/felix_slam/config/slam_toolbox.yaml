@@ -17,6 +17,10 @@ slam_toolbox:
     base_frame: base_link
     scan_topic: /scan
     mode: mapping            # mapping | localization
+    # To resume/extend a saved map, pass map_file_name (+ map_start_at_dock /
+    # map_start_pose) as a slam.launch.py arg -- NOT here -- so the default stays
+    # fresh-map. Requires a .posegraph/.data pair from save_map.sh (a .pgm grid
+    # cannot be resumed). See slam.launch.py for the full how-to.
 
     # --- Solver ---
     solver_plugin: solver_plugins::CeresSolver
