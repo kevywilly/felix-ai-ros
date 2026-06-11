@@ -14,9 +14,10 @@ needed. (teleop_twist_keyboard still works in its own terminal if you prefer.)
     ros2 launch felix_bringup mapping.launch.py
     ros2 launch felix_bringup mapping.launch.py camera:=false        # no camera
     ros2 launch felix_bringup mapping.launch.py serial_baudrate:=256000
-    # resume/extend a saved map (start the robot where you first began mapping):
-    ros2 launch felix_bringup mapping.launch.py \
-        map_file_name:=/felix-ai-ros/maps/felix_map
+
+To RESUME/extend an existing map: launch this normally (it always starts fresh),
+then call `./resume_map.sh` with the robot parked where the original map began --
+the mapping node has no startup arg to load a map. See resume_map.sh / README.
 
 Args:
   port             ROSMASTER serial port (default /dev/myserial)
@@ -26,9 +27,6 @@ Args:
   foxglove         run foxglove_bridge (default true)
   foxglove_port    foxglove_bridge WebSocket port (default 8765)
   serial_baudrate  RPLIDAR baud, 115200 (A1) or 256000 (A2/S1) (default 115200)
-  map_file_name    pose-graph basename to RESUME/extend an existing map from
-                   (no extension; default "" = fresh map). See slam.launch.py.
-  map_start_at_dock  take current pose as map origin when resuming (default true)
 """
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
@@ -60,8 +58,6 @@ def generate_launch_description():
     foxglove = LaunchConfiguration("foxglove")
     foxglove_port = LaunchConfiguration("foxglove_port")
     serial_baudrate = LaunchConfiguration("serial_baudrate")
-    map_file_name = LaunchConfiguration("map_file_name")
-    map_start_at_dock = LaunchConfiguration("map_start_at_dock")
 
     return LaunchDescription([
         DeclareLaunchArgument("port", default_value="/dev/myserial"),
@@ -71,20 +67,16 @@ def generate_launch_description():
         DeclareLaunchArgument("foxglove", default_value="true"),
         DeclareLaunchArgument("foxglove_port", default_value="8765"),
         DeclareLaunchArgument("serial_baudrate", default_value="115200"),
-        DeclareLaunchArgument("map_file_name", default_value=""),
-        DeclareLaunchArgument("map_start_at_dock", default_value="true"),
 
         # Core: base driver + EKF + description (always on).
         _inc("felix_bringup", ["launch", "felix.launch.py"],
              args={"port": port, "use_ekf": use_ekf}),
 
-        # SLAM: RPLIDAR + slam_toolbox. map_file_name (empty by default) resumes
-        # an existing pose-graph instead of starting fresh.
+        # SLAM: RPLIDAR + slam_toolbox (always starts a fresh map; resume via
+        # resume_map.sh after launch -- the mapping node has no load-at-startup).
         _inc("felix_slam", ["launch", "slam.launch.py"],
              condition=IfCondition(slam),
-             args={"serial_baudrate": serial_baudrate,
-                   "map_file_name": map_file_name,
-                   "map_start_at_dock": map_start_at_dock}),
+             args={"serial_baudrate": serial_baudrate}),
 
         # CSI camera (low-lag defaults).
         _inc("felix_camera", ["launch", "camera.launch.py"],

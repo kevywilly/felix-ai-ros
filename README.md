@@ -131,6 +131,42 @@ Args: `port` (default `/dev/myserial`), `use_ekf`, `slam`, `camera`, `foxglove`
 `ros-humble-robot-localization` (EKF) and the `foxglove_bridge` package installed
 (see `BUILD_NOTES.md`).
 
+### Saving & extending a map
+
+With a mapping session still **running**, save from another terminal:
+
+```bash
+./save_map.sh                                   # default basename maps/felix_map
+./save_map.sh /felix-ai-ros/maps/other          # custom basename
+```
+
+This writes **two** formats: the occupancy grid (`.pgm` + `.yaml`, what
+localization/navigation load) **and** the slam_toolbox pose-graph (`.posegraph` +
+`.data`). The pose-graph is what lets you later **extend** the map — the grid alone
+is a one-way export and cannot be resumed. (The serialize step is a service call to
+the live `slam_toolbox` node, so save *before* you `Ctrl-C`.)
+
+To **resume and extend** an existing map, park the robot **where the original map
+began** (the "dock"), same heading, launch mapping normally, then deserialize the
+saved pose-graph from another terminal:
+
+```bash
+ros2 launch felix_bringup mapping.launch.py     # ALWAYS starts a fresh map
+./resume_map.sh                                 # loads maps/felix_map + continues
+./resume_map.sh /felix-ai-ros/maps/other        # custom basename
+```
+
+There is **no launch arg** to load a map: the mapping node ignores
+`map_file_name` / `map_start_pose` / `map_start_at_dock` — slam_toolbox honours
+those only in *localization* mode. Extending the map must go through the
+`deserialize_map` service, which is what `resume_map.sh` calls (with
+`match_type: START_AT_FIRST_NODE`, i.e. seed from the dock). slam_toolbox does
+**not** relocalize globally; it seeds from the saved graph's first node and
+scan-matches (only ~±20° of heading), so the robot must physically be at that
+original start pose — wrong spot/heading mis-aligns the old graph with new scans.
+Confirm the old map appears in `/map` before driving, extend it, then
+`./save_map.sh` again.
+
 ## Run — localization (drive on a saved map)
 
 Once you've built and **saved** a map (`maps/felix_map.yaml` + `.pgm`), this is the
