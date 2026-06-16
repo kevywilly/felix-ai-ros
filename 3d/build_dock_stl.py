@@ -4,7 +4,7 @@ Z=up (floor 0). Units mm. Edit PARAMS and re-run."""
 import numpy as np, struct
 
 # ---------- PARAMS (mm) ----------
-MOUTH_W=160.0; THROAT_W=113.0; FUNNEL_DEPTH=70.0   # funnel taper (entry->seat)
+MOUTH_W=150.0; THROAT_W=113.0; FUNNEL_DEPTH=35.0   # funnel taper; depth < battery depth(40) so walls clear the motor plates
 WALL_T=6.0; WALL_Z0=5.0; WALL_Z1=86.0              # funnel wall thickness & height
 BASE_T=5.0                                         # base plate thickness
 SEAT_Y=-FUNNEL_DEPTH                               # battery rear face seats here (-70)

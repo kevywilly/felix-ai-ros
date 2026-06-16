@@ -20,8 +20,8 @@ gap_in=2*wheel_in                            # 227 between inner faces
 # ---- DOCK (design params) ----
 PAD_Z=AXLE_Z                                 # pad/pin center height 48
 PAD_PITCH=33; PAD_W=[25,25,14]               # VBUS,GND,CC widths (CC narrower)
-MOUTH_W=160; THROAT_W=BATT_W+6               # 113 -> 3mm side clearance
-FUNNEL_DEPTH=70                              # y depth of taper
+MOUTH_W=150; THROAT_W=BATT_W+6               # 113 -> 3mm side clearance
+FUNNEL_DEPTH=35                              # y depth of taper (< battery depth 40, clears plates)
 WALL_Z0=8; WALL_Z1=88                        # funnel wall vertical span (catches batt edges)
 WALL_T=5; BASE_T=4
 POGO_PROUD=3                                 # pins stick out past seat plane

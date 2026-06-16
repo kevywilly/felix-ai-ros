@@ -80,19 +80,19 @@ into it) and the pads sit in the exact same place every dock.
 ## Part B — the dock (reference: `dock_reference.stl`)
 
 Tapered pocket the robot reverses into between its rear wheels. Footprint
-**172 wide × 150 deep × 86 tall**.
+**162 wide × 115 deep × 86 tall**.
 
 | Element | Spec | Notes |
 |---|---|---|
-| **Funnel mouth** | **160 wide** (inner) at entry (Y=0) | 227 wheel gap → **27 mm/side** clearance to wheels |
-| **Funnel throat** | **113 wide** (inner) at seat (Y=−70) | 107 battery → **3 mm/side** → self-centers lateral + yaw |
-| **Funnel depth** | **70** (Y 0 → −70) | half-angle **≈18.6°**, handles ±5–8° approach yaw |
+| **Funnel mouth** | **150 wide** (inner) at entry (Y=0) | 227 wheel gap → **38 mm/side** clearance to wheels |
+| **Funnel throat** | **113 wide** (inner) at seat (Y=−35) | 107 battery → **3 mm/side** → self-centers lateral + yaw |
+| **Funnel depth** | **35** (Y 0 → −35) | half-angle **≈28°**; kept **< battery depth (40)** so the walls stay beside the battery and clear the motor plates |
 | **Funnel walls** | **6 thick**, height **Z 5 → 86** | catch the battery's vertical side edges (Z 12–84) |
 | **Base plate** | **5 thick**, Z 0–5 | battery bottom (Z12) clears it by 7 |
-| **Back wall** | Y −75 → −70, half-width 66, Z 5–86 | carries the floating pogo block |
-| **Seat plane** | **Y = −70** | robot pad plane meets pins here |
-| **Hard-stop bumpers** | 2 posts at X ±50, Z 48, **proud to Y = −68** | robot face seats on these, NOT the pins |
-| **Brick shelf** | Y −75 → −145, back lip 30 tall | PD brick sits here behind the wall |
+| **Back wall** | Y −40 → −35, half-width 66, Z 5–86 | carries the floating pogo block |
+| **Seat plane** | **Y = −35** | robot pad plane meets pins here |
+| **Hard-stop bumpers** | 2 posts at X ±50, Z 48, **proud to Y = −33** | robot face seats on these, NOT the pins |
+| **Brick shelf** | Y −40 → −110, back lip 30 tall | PD brick sits here behind the wall |
 
 ### Floating pogo block (in the back wall)
 
@@ -110,7 +110,7 @@ Tapered pocket the robot reverses into between its rear wheels. Footprint
 Gross centering = funnel on the **battery** (107 in 113). Fine tolerance =
 **wide pads (25)** + **floating pins (±5)**. Vertical is free (robot rides the
 floor → pads & pins both fixed at Z=48). So the robot only needs to put its rear
-into the **160 mm mouth** between the wheels — Nav2 back-in easily clears that.
+into the **150 mm mouth** between the wheels — Nav2 back-in easily clears that.
 
 ---
 
@@ -128,7 +128,7 @@ into the **160 mm mouth** between the wheels — Nav2 back-in easily clears that
 ## Using the reference STL in Fusion
 
 `3d/dock_reference.stl` is in the same datum as above (mouth at Y=0, seat at
-Y=−70, floor Z=0, centerline X=0). Drop it next to `RearEnd.stl`, align floors
+Y=−35, floor Z=0, centerline X=0). Drop it next to `RearEnd.stl`, align floors
 and centerlines, slide the dock in −Y until the bumpers meet the battery face,
 and check: (1) mouth clears both wheels, (2) battery noses to the throat,
 (3) pins land on the pad lanes at Z=48. Then model the production part natively.
