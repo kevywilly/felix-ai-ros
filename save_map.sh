@@ -14,8 +14,14 @@ set -u
 
 MAP="${1:-/felix-ai-ros/maps/felix_map}"
 
-# 1) occupancy grid for localization
-ros2 run nav2_map_server map_saver_cli -f "$MAP"
+# 1) occupancy grid for localization.
+#    --mode scale + a low --free preserves the live map's 0-100 probability
+#    gradient instead of the default trinary, which snaps every mid-confidence
+#    cell (free_thresh..occupied_thresh) to grey "unknown" -- that snap is why a
+#    map that looks good live looks eroded (thin/missing walls) once Nav2/AMCL
+#    load it. PNG, not PGM: scale mode needs the alpha channel to carry unknown.
+ros2 run nav2_map_server map_saver_cli -f "$MAP" \
+  --mode scale --occ 0.65 --free 0.196 --fmt png
 
 # 2) pose-graph for resuming/extending mapping
 ros2 service call /slam_toolbox/serialize_map \
@@ -23,7 +29,7 @@ ros2 service call /slam_toolbox/serialize_map \
 
 # The in-container (root) slam_toolbox node writes .posegraph/.data as root;
 # hand them back to the host user so host-side git can manage them.
-chown 1000:1000 "${MAP}".pgm "${MAP}".yaml \
+chown 1000:1000 "${MAP}".png "${MAP}".pgm "${MAP}".yaml \
                 "${MAP}".posegraph "${MAP}".data 2>/dev/null || true
 
-echo "Saved: ${MAP}.pgm/.yaml (grid) + ${MAP}.posegraph/.data (pose-graph)"
+echo "Saved: ${MAP}.png/.yaml (grid, scale mode) + ${MAP}.posegraph/.data (pose-graph)"

@@ -36,5 +36,7 @@ log/
 config.local.yml
 
 # TensorRT engines are device/TensorRT-version specific -- built on-device by
-# `ros2 run felix_perception build-engine` into a cache, never committed.
+# `ros2 run felix_perception build-engine` into a cache, never committed. The
+# .onnx is just the export intermediate. The .pt weights ARE committed (models/).
 *.engine
+*.onnx

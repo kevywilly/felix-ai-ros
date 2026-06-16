@@ -17,7 +17,8 @@ Args:
   imgsz              YOLO input size (default 640)
   publish_annotated  publish the FPV boxes stream (default true)
   require_engine     fail instead of falling back to the .pt (default false)
-  engine_dir         engine cache dir ("" = $FELIX_ENGINE_DIR or ~/.cache/felix)
+  engine_dir         engine cache dir (default /data/models/yolo, a persistent
+                     mount; "" = $FELIX_ENGINE_DIR or ~/.cache/felix)
 """
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
@@ -33,7 +34,10 @@ def generate_launch_description():
         "imgsz": "640",
         "publish_annotated": "true",
         "require_engine": "false",
-        "engine_dir": "",
+        # Persistent mount so the built .engine survives container restarts
+        # (~/.cache/felix is ephemeral). Build into it with:
+        #   FELIX_ENGINE_DIR=/data/models/yolo ros2 run felix_perception build-engine
+        "engine_dir": "/data/models/yolo",
     }
     declared = [DeclareLaunchArgument(k, default_value=v) for k, v in args.items()]
 

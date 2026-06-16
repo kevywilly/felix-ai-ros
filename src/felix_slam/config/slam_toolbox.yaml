@@ -29,7 +29,12 @@ slam_toolbox:
     ceres_preconditioner: SCHUR_JACOBI
     ceres_trust_strategy: LEVENBERG_MARQUARDT
     ceres_dogleg_type: TRADITIONAL_DOGLEG
-    ceres_loss_function: None
+    # HuberLoss (not None): down-weights outlier scan-matches so a single bad
+    # match doesn't warp the whole pose graph. Right default for this open-loop
+    # mecanum, whose heading is the least-trustworthy DOF (unobserved wheel slip)
+    # -- without a robust loss those slip-induced bad matches get full weight and
+    # bake distortion (smeared/double walls) into the map.
+    ceres_loss_function: HuberLoss
 
     # --- Map ---
     resolution: 0.05

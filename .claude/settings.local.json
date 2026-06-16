@@ -13,7 +13,8 @@
       "Bash(chown -R 1000:1000 /.claude/projects/-felix-ai-ros/memory)",
       "Bash(grep -nA20 \"entry_points\" src/felix_base/setup.py)",
       "Bash(ps -eo pid,args)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(xargs -0 python3 scripts/extract-metadata.py --cwd-filter felix-ai-ros)"
     ]
   }
 }

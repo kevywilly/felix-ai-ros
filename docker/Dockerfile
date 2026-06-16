@@ -10,7 +10,8 @@ ENV BLINKA_FORCECHIP=T234 \
     LC_ALL=en_US.UTF-8 \
     RMW_IMPLEMENTATION=rmw_cyclonedds_cpp \
     ROS_DOMAIN_ID=42 \
-    ROS_DISTRO=humble
+    ROS_DISTRO=humble \
+    FELIX_ENGINE_DIR=/data/models/yolo
 
 # ---- Tier 2: Locale (rarely changes) ----
 RUN apt-get update && apt-get install -y --no-install-recommends locales \

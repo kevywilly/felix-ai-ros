@@ -116,7 +116,8 @@ class DetectorNode(Node):
         engine_path = geometry.engine_cache_path(weights, engine_dir or None)
         if os.path.exists(engine_path):
             self.get_logger().info(f"loading TensorRT engine {engine_path}")
-            return "engine", YOLO(engine_path)
+            # task is explicit: a bare .engine carries no task metadata to guess.
+            return "engine", YOLO(engine_path, task="detect")
         note = (f"engine {engine_path} not found; run "
                 "'ros2 run felix_perception build-engine'")
         if require_engine:
