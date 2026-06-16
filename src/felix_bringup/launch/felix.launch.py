@@ -56,12 +56,12 @@ def generate_launch_description():
             output="screen",
             parameters=[{"port": port, "publish_tf": bridge_publish_tf}],
         ),
-        Node(
-            package="felix_base",
-            executable="tof",
-            name="tof_node",
-            output="screen",
-        ),
+        # Node(
+        #    package="felix_base",
+        #    executable="tof",
+        #    name="tof_node",
+        #    output="screen",
+        #),
 
         # Robot model -> /tf_static (base_footprint->base_link->{imu_link, laser}).
         # robot_state_publisher now owns these frames, so the EKF gets

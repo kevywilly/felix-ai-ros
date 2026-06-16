@@ -73,7 +73,6 @@ if [ $ARCH = "aarch64" ]; then
 		--device /dev/bus/usb \
 		--device /dev/rplidar \
 		--device /dev/myserial \
-		--device /dev/mypico \
 		--device /dev/i2c-1 \
 		--device /dev/i2c-2 \
 		--device /dev/i2c-7 \

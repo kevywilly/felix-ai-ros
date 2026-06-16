@@ -158,25 +158,37 @@ is a one-way export and cannot be resumed. (The serialize step is a service call
 the live `slam_toolbox` node, so save *before* you `Ctrl-C`.)
 
 To **resume and extend** an existing map, park the robot **where the original map
-began** (the "dock"), same heading, launch mapping normally, then deserialize the
+began** (the origin), same heading, launch mapping normally, then deserialize the
 saved pose-graph from another terminal:
 
 ```bash
 ros2 launch felix_bringup mapping.launch.py     # ALWAYS starts a fresh map
-./resume_map.sh                                 # loads maps/felix_map + continues
+./resume_map.sh                                 # given-pose at origin (default)
 ./resume_map.sh /felix-ai-ros/maps/other        # custom basename
+./resume_map.sh /felix-ai-ros/maps/felix_map 1.2 -0.5 1.57   # seed at x y theta (map frame)
+./resume_map.sh /felix-ai-ros/maps/felix_map dock            # dock auto-match (see warning)
 ```
 
 There is **no launch arg** to load a map: the mapping node ignores
 `map_file_name` / `map_start_pose` / `map_start_at_dock` — slam_toolbox honours
 those only in *localization* mode. Extending the map must go through the
-`deserialize_map` service, which is what `resume_map.sh` calls (with
-`match_type: START_AT_FIRST_NODE`, i.e. seed from the dock). slam_toolbox does
-**not** relocalize globally; it seeds from the saved graph's first node and
-scan-matches (only ~±20° of heading), so the robot must physically be at that
-original start pose — wrong spot/heading mis-aligns the old graph with new scans.
-Confirm the old map appears in `/map` before driving, extend it, then
-`./save_map.sh` again.
+`deserialize_map` service, which is what `resume_map.sh` calls.
+
+By **default** it uses `START_AT_GIVEN_POSE` (match_type 2), seeding the robot at a
+known pose in the map frame — origin `(0,0,0)` unless you pass `x y theta`. This
+seeds the pose and only scan-matches **locally** (~±20° of heading), so it will
+**not** flip; the robot must physically be at that seed pose (the origin if you
+give none) or the old graph mis-aligns with new scans. Pass explicit `x y theta`
+if you're restarting somewhere else on the existing map.
+
+The optional `dock` argument switches to `START_AT_FIRST_NODE` (match_type 1),
+which scan-matches your first scan against the saved first node over a **wide**
+orientation search. In rectangular / right-angled rooms that can snap to a 90°
+local optimum and build the continuation rotated — avoid it unless the space is
+distinctive. Prefer the default given-pose.
+
+Confirm the old map appears in `/map` **and** the live scan lands on the old walls
+before driving, extend it, then `./save_map.sh` again.
 
 ## Run — localization (drive on a saved map)
 
