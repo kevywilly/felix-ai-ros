@@ -1,0 +1,43 @@
+# ============================ PLACEHOLDER ===================================
+# These are NOMINAL IMX219 intrinsics at 640x360 (the camera's bringup default
+# resolution), NOT a real calibration. fx/fy are derived from the ~62 deg
+# horizontal FOV; distortion is zeroed. Back-projection (and therefore every
+# fused map position) is only as accurate as this file.
+#
+# >>> REPLACE on hardware <<<  Run, at the SAME resolution the detector runs at:
+#   ros2 run camera_calibration cameracalibrator \
+#     --size 8x6 --square 0.025 \
+#     --ros-args -r image:=/camera/image_raw -p camera:=/camera \
+#       -p image_transport:=compressed
+# Move the board across the full frame until all bars fill, Calibrate -> Save,
+# accept only if the RMS reprojection error is low and coverage spans the frame
+# (a mediocre calibration silently caps fusion accuracy). Then copy the produced
+# camera_matrix / distortion_coefficients here. If RMS is poor at q60/q80 JPEG,
+# capture the calibration session off a raw Image stream instead.
+# ============================================================================
+image_width: 640
+image_height: 360
+camera_name: felix_csi
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [530.0,   0.0, 320.0,
+           0.0, 530.0, 180.0,
+           0.0,   0.0,   1.0]
+distortion_model: plumb_bob
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data: [0.0, 0.0, 0.0, 0.0, 0.0]
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1.0, 0.0, 0.0,
+         0.0, 1.0, 0.0,
+         0.0, 0.0, 1.0]
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [530.0,   0.0, 320.0, 0.0,
+           0.0, 530.0, 180.0, 0.0,
+           0.0,   0.0,   1.0, 0.0]

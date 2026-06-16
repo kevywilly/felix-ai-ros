@@ -34,3 +34,7 @@ log/
 
 # Local config overrides (keep config.yml tracked; ignore personal copies)
 config.local.yml
+
+# TensorRT engines are device/TensorRT-version specific -- built on-device by
+# `ros2 run felix_perception build-engine` into a cache, never committed.
+*.engine

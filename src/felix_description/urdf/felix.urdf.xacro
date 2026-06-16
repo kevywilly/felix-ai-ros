@@ -5,7 +5,7 @@
   TF tree:  base_link -> base_footprint   (ground projection, below)
                       -> imu_link
                       -> laser
-                      -> camera_link
+                      -> camera_link -> camera_optical_link  (REP-105 optical, z fwd)
 
   base_link is the URDF ROOT and the chassis rotation centre (the point the EKF
   publishes odom -> base_link for). Everything else, including base_footprint (the
@@ -65,7 +65,9 @@
        wheels. Front axle = wheel_base/2 = 0.095 m forward; front-most wheel point
        = 0.095 + wheel_radius (0.0485) = 0.1435 m; minus 0.010 = 0.1335 m.
        Orientation is REP-103 (x forward) like base_link; the REP-105 optical
-       frame (z forward) gets added when felix_perception lands. -->
+       frame (z forward, x right, y down) is published as camera_optical_link,
+       a fixed child of camera_link (below). felix_perception stamps CameraInfo
+       and Detection2DArray in camera_optical_link, not camera_link. -->
   <xacro:property name="camera_x"     value="0.1335"/>
   <xacro:property name="camera_y"     value="0.0"/>
   <xacro:property name="camera_z"     value="0.0"/>
@@ -133,6 +135,17 @@
     <child link="camera_link"/>
     <origin xyz="${camera_x} ${camera_y} ${camera_z}"
             rpy="${camera_roll} ${camera_pitch} ${camera_yaw}"/>
+  </joint>
+
+  <!-- REP-105 optical frame: z forward, x right, y down. Standard REP-103
+       (x forward) -> optical rotation is rpy = (-pi/2, 0, -pi/2). felix_perception
+       back-projects pixels and stamps detections/CameraInfo in this frame; the
+       fusion node transforms the bearing wedge camera_optical_link -> laser. -->
+  <link name="camera_optical_link"/>
+  <joint name="camera_to_camera_optical" type="fixed">
+    <parent link="camera_link"/>
+    <child link="camera_optical_link"/>
+    <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
   </joint>
 
 </robot>

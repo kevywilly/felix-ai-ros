@@ -67,6 +67,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       ros-humble-xacro \
       ros-humble-robot-state-publisher \
       ros-humble-foxglove-bridge \
+      ros-humble-message-filters \
+      ros-humble-tf2-geometry-msgs \
+      ros-humble-camera-calibration \
+      ros-humble-compressed-image-transport \
  && rm -rf /var/lib/apt/lists/*
 
 # ---- Tier 7: Hardware Python deps (rare changes) ----

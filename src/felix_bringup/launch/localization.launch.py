@@ -8,6 +8,7 @@ so ONE Ctrl-C cleanly stops all of it.
   * felix.launch.py            base driver + EKF + robot description (TF)
   * felix_slam/localization    RPLIDAR + map_server + AMCL    (localize:=false to skip)
   * camera.launch.py           CSI camera -> compressed image (camera:=false to skip)
+  * felix_perception           YOLO detector + lidar fusion   (perception:=true to add)
   * foxglove_bridge            WebSocket for the Mac UI        (foxglove:=false to skip)
 
 Drive from the Foxglove Teleop panel (publishes /cmd_vel) -- no teleop terminal.
@@ -24,6 +25,7 @@ Args:
   localize         run RPLIDAR + map_server + AMCL (default true)
   map              occupancy-grid yaml (default /felix-ai-ros/maps/felix_map.yaml)
   camera           run the CSI camera (default true)
+  perception       run felix_perception (YOLO + lidar fusion) (default false)
   foxglove         run foxglove_bridge (default true)
   foxglove_port    foxglove_bridge WebSocket port (default 8765)
   serial_baudrate  RPLIDAR baud, 115200 (A1) or 256000 (A2/S1) (default 115200)
@@ -56,6 +58,7 @@ def generate_launch_description():
     localize = LaunchConfiguration("localize")
     map_yaml = LaunchConfiguration("map")
     camera = LaunchConfiguration("camera")
+    perception = LaunchConfiguration("perception")
     foxglove = LaunchConfiguration("foxglove")
     foxglove_port = LaunchConfiguration("foxglove_port")
     serial_baudrate = LaunchConfiguration("serial_baudrate")
@@ -67,6 +70,7 @@ def generate_launch_description():
         DeclareLaunchArgument("map",
                               default_value="/felix-ai-ros/maps/felix_map.yaml"),
         DeclareLaunchArgument("camera", default_value="true"),
+        DeclareLaunchArgument("perception", default_value="false"),
         DeclareLaunchArgument("foxglove", default_value="true"),
         DeclareLaunchArgument("foxglove_port", default_value="8765"),
         DeclareLaunchArgument("serial_baudrate", default_value="115200"),
@@ -83,6 +87,12 @@ def generate_launch_description():
         # CSI camera (low-lag defaults).
         _inc("felix_camera", ["launch", "camera.launch.py"],
              condition=IfCondition(camera)),
+
+        # Perception: YOLO detector + lidar fusion (opt-in; needs the camera and,
+        # for map placement, AMCL). The detector calibration matches the camera's
+        # 640x360 bringup resolution.
+        _inc("felix_perception", ["launch", "perception.launch.py"],
+             condition=IfCondition(perception)),
 
         # Foxglove bridge (XML launch) for the Mac UI. Pass `port` explicitly:
         # the bridge's `port` arg is its WebSocket port (integer 8765), and

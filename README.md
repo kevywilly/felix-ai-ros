@@ -49,7 +49,7 @@ teleop / Nav2 ──/cmd_vel (Twist)──► bridge_node ──► set_motor() 
 Full TF chain when localizing/navigating on a map:
 
 ```
-map ──► odom ──► base_link ──► {imu_link, laser, camera_link}
+map ──► odom ──► base_link ──► {imu_link, laser, camera_link ──► camera_optical_link}
  │        │          │
  │        │          └─ felix_localization EKF  (fuses /odom vx,vy + /imu gyro-Z)
  │        └──────────── (the EKF's odom frame; allowed to drift)
@@ -57,7 +57,18 @@ map ──► odom ──► base_link ──► {imu_link, laser, camera_link}
 ```
 
 When the EKF is on, the bridge's own `odom→base_link` TF is suppressed so the two
-don't fight. `base_link→{imu_link, laser, camera_link}` come from the URDF.
+don't fight. `base_link→{imu_link, laser, camera_link}` come from the URDF;
+`camera_link→camera_optical_link` is the REP-105 optical frame (z-forward) perception
+stamps detections in.
+
+With `perception:=true` (see *Run — perception*), `felix_perception` adds:
+
+```
+camera/image_raw/compressed ──► detector ──/perception/detections (Detection2DArray)──►
+                                         └──/perception/annotated/compressed (FPV boxes)
+                                         └──/camera/camera_info + /perception/status
+detector + /scan ──► fusion ──/perception/objects (MarkerArray, map frame)──►
+```
 
 ## Requirements
 
@@ -216,6 +227,66 @@ the 1.04 max, wz 1.2 of 4.58) — raise them once it behaves. The costmap footpr
 the chassis box (`0.22 × 0.28`). First runs: short goals, open floor, clear of stairs;
 `Ctrl-C` drops `/cmd_vel` and the bridge stops the motors.
 
+## Run — perception (YOLO + lidar map placement)
+
+`felix_perception` runs YOLO on the camera and places **floor-standing** detections on
+the map using the RPLIDAR. It is **opt-in** (`perception:=true`) on the localization and
+navigation stacks and is the perception spine for later work — it does **not** drive the
+robot. Two nodes: a **detector** (`/camera/image_raw/compressed` → YOLO on a TensorRT FP16
+engine → `vision_msgs/Detection2DArray` + an annotated FPV stream + `CameraInfo`) and a
+**fusion** node (detections + `/scan` → `map`-frame markers, by bearing-wedge
+intersection). Needs `ros-humble-camera-calibration` + `ros-humble-compressed-image-transport`
+(in the Dockerfile) plus Ultralytics/TensorRT (from the base image).
+
+**One-time setup on the Jetson**, in order:
+
+**1 — Build the TensorRT engine** from the YOLO weights. The engine is device/TensorRT-version
+specific, so it is built on-device into a cache and never committed; re-run with `--force`
+after a JetPack/TensorRT upgrade.
+
+```bash
+ros2 run felix_perception build-engine        # yolo11n.pt -> ~/.cache/felix/yolo11n.engine
+```
+
+Without an engine the detector still runs on the `.pt` (slower torch path) and says so on
+`/perception/status`.
+
+**2 — Calibrate the camera** (headless — no GUI). Print a checkerboard
+(`src/felix_perception/calibration/checkerboard_8x6_25mm.pdf`) at **100% / actual size**,
+**measure a printed square**, and mount it flat on something rigid. Start the camera, then
+collect views and calibrate:
+
+```bash
+# terminal A: any stack that publishes the camera
+ros2 launch felix_bringup localization.launch.py
+# terminal B: collect + calibrate (use your MEASURED square size, in METRES)
+ros2 run felix_perception calibrate-camera --square 0.025
+```
+
+Add a Foxglove **Image** panel on `/calibration/annotated/compressed` to watch corner
+detection; the terminal prints `captured N/40` plus per-axis coverage (X / Y / Size / Skew).
+Move the board across the **whole frame** — corners, tilts, near/far — until it hits the
+target; it then prints the **RMS reprojection error** and writes `config/camera_info.yaml`
+(`Ctrl-C` calibrates early on ≥12 views). Calibrate at the **same resolution** the detector
+runs at (the camera's 640×360 bringup default). A clearly-marked placeholder `camera_info`
+ships until you do this — every fused map position rides on this calibration.
+
+**Run it** — add `perception:=true` to the localization or navigation stack:
+
+```bash
+ros2 launch felix_bringup localization.launch.py perception:=true
+ros2 launch felix_bringup navigation.launch.py  perception:=true
+```
+
+In Foxglove: an **Image** panel on `/perception/annotated/compressed` shows labelled boxes;
+in the **3D** panel (`map` frame) markers on `/perception/objects` drop where floor-standing
+objects are. Because the RPLIDAR is a single horizontal plane (~0.115 m up), only objects
+crossing it get a map marker — a standing person, chair/table legs; things above the plane
+publish as 2D-only (a box, no marker), and map placement needs AMCL localized.
+`/perception/status` reports the active backend (`engine` vs `pt`) and inference latency.
+Tuning args (on `perception.launch.py`): `weights`, `conf`, `imgsz`, `publish_annotated`,
+`require_engine`, `engine_dir`.
+
 ## Run — base only
 
 For motion/odometry work without lidar, camera, or UI. `felix.launch.py` composes
@@ -351,10 +422,13 @@ Put the resulting values into `config.yml` (`motor_map`, `motor_sign`,
 
 Done: `felix_description` (URDF/TF), `felix_slam` (RPLIDAR + slam_toolbox **mapping**
 and `nav2_map_server` + AMCL **localization**), `felix_nav` (**Nav2** autonomy:
-NavFn + MPPI holonomic + behaviors), and `felix_camera` (CSI → Foxglove FPV) —
-composed by `mapping` / `localization` / `navigation` one-shots.
+NavFn + MPPI holonomic + behaviors), `felix_camera` (CSI → Foxglove FPV), and
+`felix_perception` (**YOLO** detector on a TensorRT engine + **lidar-fused** map
+placement, `perception:=true`) — composed by `mapping` / `localization` /
+`navigation` one-shots.
 
-- **YOLO** → `felix_perception` (`vision_msgs/Detection2DArray`).
+- **Perception next:** Home Assistant/MQTT output, a record-while-driving dataset to
+  fine-tune YOLO for the house, and fiducial-marker docking (see `docs/ideation/`).
 - **WebRTC video** → `felix_streaming` (likely its own process/container).
 - **Nav2 tuning**: raise MPPI speed limits and tune critic weights from the
   conservative defaults once autonomous driving is verified on hardware.

@@ -17,6 +17,7 @@ drives there (strafing as needed -- it's holonomic). First seed AMCL with a
 
 Args (in addition to localization.launch.py's port/map/camera/foxglove/...):
   navigation   run the nav2 navigation servers (default true)
+  perception   run felix_perception (YOLO + lidar fusion) (default false)
 """
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
@@ -40,6 +41,7 @@ def generate_launch_description():
     port = LaunchConfiguration("port")
     map_yaml = LaunchConfiguration("map")
     camera = LaunchConfiguration("camera")
+    perception = LaunchConfiguration("perception")
     foxglove = LaunchConfiguration("foxglove")
     serial_baudrate = LaunchConfiguration("serial_baudrate")
     navigation = LaunchConfiguration("navigation")
@@ -49,6 +51,7 @@ def generate_launch_description():
         DeclareLaunchArgument("map",
                               default_value="/felix-ai-ros/maps/felix_map.yaml"),
         DeclareLaunchArgument("camera", default_value="true"),
+        DeclareLaunchArgument("perception", default_value="false"),
         DeclareLaunchArgument("foxglove", default_value="true"),
         DeclareLaunchArgument("serial_baudrate", default_value="115200"),
         DeclareLaunchArgument("navigation", default_value="true"),
@@ -60,6 +63,7 @@ def generate_launch_description():
                  "port": port,
                  "map": map_yaml,
                  "camera": camera,
+                 "perception": perception,
                  "foxglove": foxglove,
                  "serial_baudrate": serial_baudrate,
              }),

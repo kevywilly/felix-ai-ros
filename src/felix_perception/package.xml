@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>felix_perception</name>
+  <version>0.1.0</version>
+  <description>
+    YOLO perception for Felix: a detector node (camera/image_raw/compressed ->
+    vision_msgs/Detection2DArray + annotated image + CameraInfo, via Ultralytics
+    YOLO on a TensorRT FP16 engine) and a fusion node (Detection2DArray + the
+    RPLIDAR /scan -> map-frame object markers, by bearing-wedge intersection).
+  </description>
+  <maintainer email="kevin.williams@sidusa.com">Kevin Williams</maintainer>
+  <license>Proprietary</license>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>vision_msgs</exec_depend>
+  <exec_depend>visualization_msgs</exec_depend>
+  <exec_depend>cv_bridge</exec_depend>
+  <exec_depend>message_filters</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>tf2_geometry_msgs</exec_depend>
+  <!-- OpenCV (cv2) and numpy are provided by the image's pip, not rosdep, as in
+       felix_camera. ultralytics + torch + tensorrt come from the base image
+       (ultralytics/ultralytics:*-jetson-jetpack6); they are NOT rosdep deps.
+       image_geometry / laser_geometry are intentionally NOT depended on: the
+       fusion math uses cv2.undistortPoints and raw LaserScan arrays directly. -->
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
