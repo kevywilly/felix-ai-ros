@@ -190,6 +190,37 @@ distinctive. Prefer the default given-pose.
 Confirm the old map appears in `/map` **and** the live scan lands on the old walls
 before driving, extend it, then `./save_map.sh` again.
 
+### Returning to a saved pose (re-homing aid)
+
+`resume_map.sh` (and docking) needs the robot **physically back at the origin with
+the same heading**. `home_scan_assist.py` is a lidar "ghost" overlay that helps you
+manually drive there. At the pose you want to remember (e.g. p0 on the dock), with
+the stack **running** so the `map` frame exists, snapshot the full lidar scan; later
+replay it as a *stationary* ghost and drive until the live scan overlaps it.
+
+```bash
+# at p0, with mapping/localization running:
+python3 home_scan_assist.py save        # → home_scan.json (full scan + p0 pose in map)
+
+# later, after driving away, stack running again:
+python3 home_scan_assist.py play        # publishes the frozen ghost on /home_scan
+```
+
+In Foxglove (3D panel, **Fixed frame = `map`**) add both `LaserScan` topics:
+`/home_scan` (e.g. red — the frozen p0 ghost) and `/scan` (e.g. green — live).
+Drive until green sits on top of red; the overlap **is** "back at p0". Because it's
+the whole scan, not just front/left/right distances, a rotated robot shows the two
+scans fanned apart — so it disambiguates heading too (front/left/right alone are
+rotationally ambiguous in boxy rooms, the same 90° flip that bites `resume_map dock`).
+
+The ghost is pinned to a fixed `home_laser` frame (at the captured laser pose in
+`map`), so it stays put while the robot moves. No colcon build — runs directly via
+`python3`. Flags: `--frame odom` if you're **not** running SLAM/AMCL (no `map`
+frame; fine for a quick same-session return, but `odom` drifts/resets so prefer
+`map` for returning later); `--file` to use a different fingerprint path (one per
+named spot). `home_scan.json` is written as root in the container — `chown
+1000:1000 home_scan.json` to commit it from the host.
+
 ## Run — localization (drive on a saved map)
 
 Once you've built and **saved** a map (`maps/felix_map.yaml` + `.pgm`), this is the
@@ -444,3 +475,9 @@ placement, `perception:=true`) — composed by `mapping` / `localization` /
 - **WebRTC video** → `felix_streaming` (likely its own process/container).
 - **Nav2 tuning**: raise MPPI speed limits and tune critic weights from the
   conservative defaults once autonomous driving is verified on hardware.
+
+## llama-cpp
+
+```
+llama-completion -m /data/models/llm/NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf -ngl 999 --jinja -n 220 -p "In one sentence, what is a mecanum wheel?"
+```

@@ -19,7 +19,7 @@ Args:
   map              occupancy-grid yaml (default /felix-ai-ros/maps/felix_map.yaml)
   use_rplidar      also launch the lidar here (default true; false if already up)
   serial_port      lidar device (default /dev/rplidar)
-  serial_baudrate  115200 (A1) | 256000 (A2/A3/S1)
+  serial_baudrate  256000 (A2 M12/A3/S1) | 115200 (A1)
   scan_mode        Standard | Sensitivity | Boost
 """
 from launch import LaunchDescription
@@ -51,8 +51,8 @@ def generate_launch_description():
             description="Launch the RPLIDAR here too (false if already running)."),
         DeclareLaunchArgument("serial_port", default_value="/dev/rplidar",
                               description="RPLIDAR serial device."),
-        DeclareLaunchArgument("serial_baudrate", default_value="115200",
-                              description="Baud: 115200 (A1) or 256000 (A2/A3/S1)."),
+        DeclareLaunchArgument("serial_baudrate", default_value="256000",
+                              description="Baud: 256000 (A2 M12/A3/S1) or 115200 (A1)."),
         DeclareLaunchArgument("scan_mode", default_value="Standard",
                               description="RPLIDAR scan mode."),
 

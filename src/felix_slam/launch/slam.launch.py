@@ -40,8 +40,8 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("serial_port", default_value="/dev/rplidar",
                               description="RPLIDAR serial device."),
-        DeclareLaunchArgument("serial_baudrate", default_value="115200",
-                              description="Baud: 115200 (A1) or 256000 (A2/A3/S1)."),
+        DeclareLaunchArgument("serial_baudrate", default_value="256000",
+                              description="Baud: 256000 (A2 M12/A3/S1) or 115200 (A1)."),
 
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource([rplidar_launch]),

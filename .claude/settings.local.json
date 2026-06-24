@@ -14,7 +14,18 @@
       "Bash(grep -nA20 \"entry_points\" src/felix_base/setup.py)",
       "Bash(ps -eo pid,args)",
       "WebSearch",
-      "Bash(xargs -0 python3 scripts/extract-metadata.py --cwd-filter felix-ai-ros)"
+      "Bash(xargs -0 python3 scripts/extract-metadata.py --cwd-filter felix-ai-ros)",
+      "Read(//etc/**)",
+      "Bash(dpkg -l)",
+      "Bash(nvcc --version)",
+      "Read(//usr/local/**)",
+      "Bash(docker --version)",
+      "Bash(docker info *)",
+      "Bash(pip3 show *)",
+      "Read(//proc/**)",
+      "Read(//var/run/**)",
+      "Bash(python3 -c \"import urllib.request,sys; urllib.request.urlopen\\('https://huggingface.co',timeout=6\\); print\\('huggingface.co reachable'\\)\")",
+      "Bash(chown 1000:1000 /felix-ai-ros/docker/Dockerfile)"
     ]
   }
 }

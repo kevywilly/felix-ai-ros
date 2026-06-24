@@ -102,6 +102,38 @@ RUN pip3 uninstall -y opencv-python opencv-python-headless 2>/dev/null || true \
 print('cv2:', cv2.__file__); \
 sys.exit(0 if any(l.strip().startswith('GStreamer') and 'YES' in l for l in cv2.getBuildInformation().splitlines()) else 'cv2 lacks GStreamer support')"
 
+# ---- Tier 10.5: llama.cpp (CUDA) — Nemotron-3-Nano-4B runtime ----
+# nvidia/NVIDIA-Nemotron-3-Nano-4B is a hybrid Mamba-2 model (model_type
+# nemotron_h) — MLC/NanoLLM don't support that arch, so we run it via llama.cpp,
+# which does (that's how the official GGUF exists). Binaries go in the image;
+# GGUF weights live on the /data volume (see ./llm_download.sh), NOT in layers.
+#   CMAKE_CUDA_ARCHITECTURES=87 = Jetson Orin (Ampere, sm_87).
+#   LLAMA_CPP_REF: pinned to a release tag for reproducible builds. llama.cpp tags
+#     many builds/day with no LTS — b9763 (2026-06-22) is recent but settled, with
+#     nemotron_h (hybrid Mamba-2) support. Bump to a newer bN tag to update; set to
+#     'master' for bleeding edge.
+#   LLAMA_BUILD_JOBS: kept low — nvcc is RAM-hungry (CUDA kernel TUs can each eat
+#     >2 GB) and this builds on the 8 GB Nano. -j2 to avoid the OOM-kill that -j4
+#     hit under buildkit. Override with --build-arg LLAMA_BUILD_JOBS=1 if it still
+#     OOMs (check `dmesg | grep -i "killed process"`).
+ARG LLAMA_CPP_REF=b9763
+ARG LLAMA_BUILD_JOBS=2
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      git cmake build-essential libcurl4-openssl-dev \
+ && git clone --depth=1 --branch "${LLAMA_CPP_REF}" \
+      https://github.com/ggml-org/llama.cpp /opt/llama.cpp \
+ && cmake -S /opt/llama.cpp -B /opt/llama.cpp/build \
+      -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=87 \
+      -DLLAMA_CURL=ON -DCMAKE_BUILD_TYPE=Release \
+ && cmake --build /opt/llama.cpp/build --config Release -j"${LLAMA_BUILD_JOBS}" \
+ && cmake --install /opt/llama.cpp/build --prefix /usr/local \
+ && ldconfig \
+ && rm -rf /opt/llama.cpp/build /opt/llama.cpp/.git /var/lib/apt/lists/*
+# Weights download (llm_download.sh) is direct curl over the HF CDN — curl + python3
+# are already present (Tier 3 / base), so no huggingface_hub/Xet client is needed
+# (the Xet client hangs on this Jetson).
+ENV FELIX_LLM_DIR=/data/models/llm
+
 # ---- Tier 11: App scripts (changes often during dev — keep last) ----
 COPY ./scripts/entrypoint-ros.sh /entrypoint.sh
 COPY ./scripts/felix.sh /
@@ -117,3 +149,6 @@ RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 RUN npm install -g @anthropic-ai/claude-code
 RUN echo "source /entrypoint.sh" >> /root/.bashrc
+
+# DISABLE Xet (HF Hub) on Jetson: it hangs on this platform, and we don't need it
+ENV HF_HUB_DISABLE_XET=1

@@ -53,7 +53,7 @@ def generate_launch_description():
         DeclareLaunchArgument("camera", default_value="true"),
         DeclareLaunchArgument("perception", default_value="false"),
         DeclareLaunchArgument("foxglove", default_value="true"),
-        DeclareLaunchArgument("serial_baudrate", default_value="115200"),
+        DeclareLaunchArgument("serial_baudrate", default_value="256000"),
         DeclareLaunchArgument("navigation", default_value="true"),
 
         # Full localization stack (base + EKF + description + lidar + map_server

@@ -28,10 +28,12 @@ Args:
   perception       run felix_perception (YOLO + lidar fusion) (default false)
   foxglove         run foxglove_bridge (default true)
   foxglove_port    foxglove_bridge WebSocket port (default 8765)
-  serial_baudrate  RPLIDAR baud, 115200 (A1) or 256000 (A2/S1) (default 115200)
+  serial_baudrate  RPLIDAR baud, 256000 (A2 M12/A3/S1) or 115200 (A1) (default 256000)
 """
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import (
+    DeclareLaunchArgument, IncludeLaunchDescription, TimerAction,
+)
 from launch.conditions import IfCondition
 from launch.launch_description_sources import (
     AnyLaunchDescriptionSource, PythonLaunchDescriptionSource,
@@ -73,7 +75,7 @@ def generate_launch_description():
         DeclareLaunchArgument("perception", default_value="false"),
         DeclareLaunchArgument("foxglove", default_value="true"),
         DeclareLaunchArgument("foxglove_port", default_value="8765"),
-        DeclareLaunchArgument("serial_baudrate", default_value="115200"),
+        DeclareLaunchArgument("serial_baudrate", default_value="256000"),
 
         # Core: base driver + EKF + description (always on).
         _inc("felix_bringup", ["launch", "felix.launch.py"],
@@ -84,9 +86,15 @@ def generate_launch_description():
              condition=IfCondition(localize),
              args={"serial_baudrate": serial_baudrate, "map": map_yaml}),
 
-        # CSI camera (low-lag defaults).
-        _inc("felix_camera", ["launch", "camera.launch.py"],
-             condition=IfCondition(camera)),
+        # CSI camera (low-lag defaults). DELAYED 5 s: the nvargus camera pipeline
+        # init is CPU-heavy on the Jetson and, if it starts at t=0 alongside the
+        # RPLIDAR driver, it starves the lidar's scan-start handshake past its
+        # ~2 s SDK read timeout -> rplidar_node dies with SL_RESULT_OPERATION_TIMEOUT.
+        # Letting the lidar establish its scan loop first avoids the race.
+        TimerAction(period=5.0, actions=[
+            _inc("felix_camera", ["launch", "camera.launch.py"],
+                 condition=IfCondition(camera)),
+        ]),
 
         # Perception: YOLO detector + lidar fusion (opt-in; needs the camera and,
         # for map placement, AMCL). The detector calibration matches the camera's

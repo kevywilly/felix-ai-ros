@@ -135,8 +135,10 @@ colcon build --symlink-install
 
 ## Hardware / roadmap
 
-- ROSMASTER board on `/dev/myserial`; **RPLIDAR on `/dev/rplidar`** (the
-  `felix_slam` driver node). Encoders confirmed reporting; the board has an IMU.
+- ROSMASTER board on `/dev/myserial`; **RPLIDAR A2 M12 on `/dev/rplidar` @
+  256000 baud** (the `felix_slam` driver node; 256000 is now the launch default).
+  Mounted +83 mm forward / +75 mm up from `base_link` (`base_link→laser` in
+  `felix_description`). Encoders confirmed reporting; the board has an IMU.
 - **Done:** `felix_description` (URDF/TF), `felix_slam` (RPLIDAR + slam_toolbox
   mapping and `nav2_map_server` + AMCL localization), `felix_nav` (Nav2 autonomy:
   NavFn + MPPI holonomic + behaviors), `felix_camera` (CSI → Foxglove FPV).
