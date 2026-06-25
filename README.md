@@ -22,7 +22,9 @@ The repo root is a colcon workspace; packages live under `src/`:
 | `felix_slam` | RPLIDAR driver + **mapping** (`slam_toolbox` → live map) **and localization** (`nav2_map_server` + **AMCL** on a saved map → `map→odom`). |
 | `felix_nav` | **Autonomous navigation**: the Nav2 servers (NavFn planner, **MPPI** holonomic controller, recovery behaviors, BT navigator) → `/cmd_vel`. |
 | `felix_camera` | CSI camera → compressed image (FPV in Foxglove). |
-| `felix_bringup` | Top-level launch composition + params. Three one-shot stacks: `mapping.launch.py` (build a map), `localization.launch.py` (drive on a saved map), `navigation.launch.py` (autonomous). `felix.launch.py` is the base stack alone. |
+| `felix_perception` | **YOLO** detector (Ultralytics on a TensorRT engine) → `/perception/detections` + annotated FPV image, and **lidar-fused** map-frame object markers on `/perception/objects` (`perception:=true`). |
+| `felix_llm` | **Natural-language control**: a local LLM (Nemotron via llama.cpp) turns "go to the office", "what do you see", "find the cat", "patrol", "roam" into Nav2 goals + behaviors. Shared skills behind a `/llm/command` agent and an MCP server for the llama-server web UI. |
+| `felix_bringup` | Top-level launch composition + params. Three one-shot stacks: `mapping.launch.py` (build a map), `localization.launch.py` (drive on a saved map), `navigation.launch.py` (autonomous + perception/LLM). `felix.launch.py` is the base stack alone. |
 
 Inside `felix_base`:
 
@@ -577,8 +579,10 @@ Done: `felix_description` (URDF/TF), `felix_slam` (RPLIDAR + slam_toolbox **mapp
 and `nav2_map_server` + AMCL **localization**), `felix_nav` (**Nav2** autonomy:
 NavFn + MPPI holonomic + behaviors), `felix_camera` (CSI → Foxglove FPV), and
 `felix_perception` (**YOLO** detector on a TensorRT engine + **lidar-fused** map
-placement, `perception:=true`) — composed by `mapping` / `localization` /
-`navigation` one-shots.
+placement, `perception:=true`), and `felix_llm` (**natural-language control**: a
+local-LLM agent + MCP server for teach-a-place, go-to, vision Q&A, and
+find/patrol/roam) — composed by `mapping` / `localization` / `navigation`
+one-shots.
 
 - **Perception next:** Home Assistant/MQTT output, a record-while-driving dataset to
   fine-tune YOLO for the house, and fiducial-marker docking (see `docs/ideation/`).
