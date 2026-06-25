@@ -25,7 +25,8 @@
       "Read(//proc/**)",
       "Read(//var/run/**)",
       "Bash(python3 -c \"import urllib.request,sys; urllib.request.urlopen\\('https://huggingface.co',timeout=6\\); print\\('huggingface.co reachable'\\)\")",
-      "Bash(chown 1000:1000 /felix-ai-ros/docker/Dockerfile)"
+      "Bash(chown 1000:1000 /felix-ai-ros/docker/Dockerfile)",
+      "Bash(PAGER=cat git --no-pager diff --stat HEAD -- src/felix_bringup README.md)"
     ]
   }
 }

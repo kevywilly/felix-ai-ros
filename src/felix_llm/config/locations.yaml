@@ -1,0 +1,33 @@
+locations:
+  breakfast nook:
+    x: -4.2004
+    y: -11.7011
+    yaw: 0.5077
+  breakfast table:
+    x: -4.2004
+    y: -11.7011
+    yaw: 0.5052
+  dock:
+    x: -1.0882
+    y: -5.6447
+    yaw: 1.5021
+  family room:
+    x: -3.1746
+    y: -7.3554
+    yaw: 2.1856
+  home:
+    x: 0.0
+    y: 0.0
+    yaw: -0.0133
+  island:
+    x: -1.3418
+    y: -13.1692
+    yaw: -2.9597
+  kitchen:
+    x: -3.9979
+    y: -14.9182
+    yaw: -1.4692
+  office:
+    x: -0.2591
+    y: -1.1372
+    yaw: 1.7435
