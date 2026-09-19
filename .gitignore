@@ -40,3 +40,4 @@ config.local.yml
 # .onnx is just the export intermediate. The .pt weights ARE committed (models/).
 *.engine
 *.onnx
+bags/
