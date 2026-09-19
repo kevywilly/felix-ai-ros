@@ -67,7 +67,7 @@ def generate_launch_description():
         DeclareLaunchArgument("map",
                               default_value="/felix-ai-ros/maps/felix_map.yaml"),
         DeclareLaunchArgument("camera", default_value="true"),
-        DeclareLaunchArgument("perception", default_value="false"),
+        DeclareLaunchArgument("perception", default_value="true"),
         DeclareLaunchArgument("foxglove", default_value="true"),
         DeclareLaunchArgument("serial_baudrate", default_value="256000"),
         DeclareLaunchArgument("navigation", default_value="true"),

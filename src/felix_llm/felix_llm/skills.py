@@ -82,7 +82,8 @@ def _label_match(query, label):
 class RobotSkills:
     def __init__(self, node, store, *, map_frame='map', base_frame='base_link',
                  goal_frame='map', arrived_radius=0.75, detection_fresh=3.0,
-                 sightings_file=None, sightings_flush=5.0, callback_group=None):
+                 store_min_score=0.5, sightings_file=None, sightings_flush=5.0,
+                 callback_group=None):
         self.node = node
         self.store = store
         self.map_frame = map_frame
@@ -90,6 +91,11 @@ class RobotSkills:
         self.goal_frame = goal_frame
         self.arrived_radius = arrived_radius
         self.detection_fresh = detection_fresh  # s: "currently seeing" window
+        # Min YOLO score to PERSIST a sighting. The live "what do you see" view
+        # (_current) stays at the detector's looser conf; this only gates what we
+        # commit to long-term memory, so a low-confidence guess (e.g. a filing
+        # cabinet seen as a 'refrigerator' @0.30) isn't remembered as fact.
+        self.store_min_score = float(store_min_score)
         self._goal_handle = None
         self._cancel_requested = False  # closes the go_to send/accept stop window
 
@@ -272,8 +278,11 @@ class RobotSkills:
             if label not in cur or score > cur[label]:
                 cur[label] = score
         if cur:
+            stored = False
             with self._seen_lock:
                 for label, score in cur.items():
+                    if score < self.store_min_score:
+                        continue  # too unsure to commit to long-term memory
                     rec = self._seen.setdefault(label, {})
                     rec["stamp"] = now
                     rec["score"] = round(score, 2)
@@ -283,7 +292,9 @@ class RobotSkills:
                         rec["x"], rec["y"] = round(robot[0], 2), round(robot[1], 2)
                         rec["source"] = "robot"
                         rec["loc_stamp"] = now
-            self._dirty = True
+                    stored = True
+            if stored:
+                self._dirty = True
         self._current = cur
 
     def _on_objects(self, msg):

@@ -40,6 +40,8 @@ def _parse_args(argv):
     p.add_argument('--locations-file', default=default_locations_file())
     p.add_argument('--map-frame', default='map')
     p.add_argument('--base-frame', default='base_link')
+    p.add_argument('--store-min-score', type=float, default=0.5,
+                   help="min YOLO score to persist a sighting (default 0.5)")
     return p.parse_args(remove_ros_args(argv)[1:])
 
 
@@ -59,7 +61,9 @@ def main(argv=None):
     store = LocationStore(args.locations_file)
     group = ReentrantCallbackGroup()
     skills = RobotSkills(node, store, map_frame=args.map_frame,
-                         base_frame=args.base_frame, callback_group=group)
+                         base_frame=args.base_frame,
+                         store_min_score=args.store_min_score,
+                         callback_group=group)
 
     # Spin ROS in the background so TF fills and action futures resolve while the
     # MCP event loop owns the main thread. MCP tool handlers (run in worker

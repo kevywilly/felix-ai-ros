@@ -26,7 +26,12 @@
       "Read(//var/run/**)",
       "Bash(python3 -c \"import urllib.request,sys; urllib.request.urlopen\\('https://huggingface.co',timeout=6\\); print\\('huggingface.co reachable'\\)\")",
       "Bash(chown 1000:1000 /felix-ai-ros/docker/Dockerfile)",
-      "Bash(PAGER=cat git --no-pager diff --stat HEAD -- src/felix_bringup README.md)"
+      "Bash(PAGER=cat git --no-pager diff --stat HEAD -- src/felix_bringup README.md)",
+      "Bash(chown 1000:1000 /felix-ai-ros/docker/scripts/entrypoint-ros.sh /felix-ai-ros/docker/run-interactive.sh)",
+      "Bash(python3 -m py_compile src/felix_llm/felix_llm/skills.py src/felix_llm/felix_llm/agent_node.py src/felix_llm/felix_llm/mcp_server.py src/felix_llm/launch/felix_llm.launch.py src/felix_perception/felix_perception/fusion_node.py src/felix_perception/launch/perception.launch.py)",
+      "Bash(chown 1000:1000 src/felix_llm/felix_llm/skills.py src/felix_llm/felix_llm/agent_node.py src/felix_llm/felix_llm/mcp_server.py src/felix_llm/launch/felix_llm.launch.py src/felix_perception/felix_perception/fusion_node.py src/felix_perception/launch/perception.launch.py)",
+      "Bash(python3 -m py_compile src/felix_perception/felix_perception/detector_node.py src/felix_perception/launch/perception.launch.py)",
+      "Bash(chown 1000:1000 src/felix_perception/felix_perception/detector_node.py src/felix_perception/launch/perception.launch.py)"
     ]
   }
 }

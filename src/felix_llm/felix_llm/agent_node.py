@@ -60,6 +60,7 @@ class AgentNode(Node):
         self.declare_parameter('max_tool_turns', 4)
         self.declare_parameter('map_frame', 'map')
         self.declare_parameter('base_frame', 'base_link')
+        self.declare_parameter('store_min_score', 0.5)  # min conf to remember a sighting
 
         self.base_url = self.get_parameter('llm_base_url').value
         self.model = self.get_parameter('llm_model').value
@@ -73,6 +74,7 @@ class AgentNode(Node):
             base_frame=self.get_parameter('base_frame').value,
             goal_frame=self.get_parameter('goal_frame').value,
             arrived_radius=self.get_parameter('arrived_radius').value,
+            store_min_score=self.get_parameter('store_min_score').value,
             callback_group=group)
         self.tools = openai_tools()
 

@@ -58,6 +58,7 @@ if [ $ARCH = "aarch64" ]; then
 		--network host --ipc host \
 		-e ROBOT=${ROBOT} \
 		-e ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-42} \
+		-e FELIX_AUTOSTART_LLM=${FELIX_AUTOSTART_LLM:-1} \
 		--name felix-ai \
 		--volume /tmp/argus_socket:/tmp/argus_socket \
 		--volume /etc/enctune.conf:/etc/enctune.conf \

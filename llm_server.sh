@@ -4,50 +4,73 @@
 # from ROS nodes and Foxglove on the same network).
 #
 #   ./llm_download.sh   # once, fetches the GGUF to /data/models/llm
-#   ./llm_server.sh     # serve it
+#   ./llm_server.sh            # serve the default model (gemma)
+#   ./llm_server.sh nemotron   # serve nemotron instead
+#
+# First arg picks the model (gemma|nemotron, default gemma). Anything after it is
+# passed straight through to llama-server.
 #
 # Test:
 #   curl http://localhost:8080/v1/chat/completions -H 'Content-Type: application/json' \
-#     -d '{"model":"nemotron-3-nano-4b","messages":[{"role":"user","content":"hi"}]}'
+#     -d '{"model":"gemma-4-E4b","messages":[{"role":"user","content":"hi"}]}'
 #
-# Overridable via env: FELIX_LLM_DIR, LLM_QUANT, LLM_MODEL, LLM_PORT, LLM_CTX,
+# Overridable via env: FELIX_LLM_DIR, LLM_MODEL, LLM_ALIAS, LLM_PORT, LLM_CTX,
 # LLM_NGL, LLM_FA (flash-attn: on|off|auto), LLM_REASONING (e.g. deepseek|none).
 #
 # Any extra CLI args are passed straight through to llama-server, AFTER the
 # defaults — so they override (llama-server takes the last occurrence of a flag):
-#   ./llm_server.sh --temp 0.6 --top-p 0.95 --top-k 20
-#   ./llm_server.sh --port 9090 --ctx-size 16384 --parallel 2
+#   ./llm_server.sh nemotron --temp 0.6 --top-p 0.95 --top-k 20
+#   ./llm_server.sh gemma --port 9090 --ctx-size 16384 --parallel 2
 #   ./llm_server.sh --help        # list every llama-server flag
+#!/usr/bin/env bash
 set -euo pipefail
 
 DEST="${FELIX_LLM_DIR:-/data/models/llm}"
-QUANT="${LLM_QUANT:-Q4_K_M}"
 HOST="${LLM_HOST:-0.0.0.0}"
 PORT="${LLM_PORT:-8080}"
-CTX="${LLM_CTX:-8192}"          # model supports 262144; keep modest on 8 GB shared w/ ROS
-NGL="${LLM_NGL:-999}"           # offload all layers to GPU
+CTX="${LLM_CTX:-8192}" # Back to your original modest context size
+NGL="${LLM_NGL:-999}"  # Offload all layers to GPU
 
-# Pick the model file: explicit LLM_MODEL, else newest GGUF matching the quant.
-MODEL="${LLM_MODEL:-$(ls -t "$DEST"/*"${QUANT}"*.gguf 2>/dev/null | head -1 || true)}"
-if [ -z "${MODEL}" ] || [ ! -f "${MODEL}" ]; then
-  echo "ERROR: no '*${QUANT}*.gguf' in $DEST — run ./llm_download.sh first." >&2
+# Default to gemma as you had it
+MODEL_NAME="gemma"
+case "${1:-}" in
+  gemma|nemotron) MODEL_NAME="$1"; shift ;;
+  -*|"") ;; 
+  *) echo "ERROR: unknown model '$1' (expected gemma|nemotron)." >&2; exit 1 ;;
+esac
+
+case "$MODEL_NAME" in
+  gemma)
+    MODEL_FILE="gemma-4-E4B-it-Q4_K_M.gguf"
+    ALIAS="gemma-4-E4b"
+    ;;
+  nemotron)
+    MODEL_FILE="NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf"
+    ALIAS="nemotron-3-nano-4b"
+    ;;
+esac
+
+MODEL="${LLM_MODEL:-$DEST/$MODEL_FILE}"
+ALIAS="${LLM_ALIAS:-$ALIAS}"
+
+if [ ! -f "${MODEL}" ]; then
+  echo "ERROR: model not found: $MODEL" >&2
   exit 1
 fi
 
+MODEL="$(realpath "$MODEL")"
+
 ARGS=(
   --model "$MODEL"
-  --host "$HOST" --port "$PORT"
+  --host "$HOST"
+  --port "$PORT"
   --ctx-size "$CTX"
   --n-gpu-layers "$NGL"
-  --jinja                       # use the model's embedded chat template
-  --alias nemotron-3-nano-4b
-  --tools all
+  --jinja        # Back to your original template fallback
+  --alias "$ALIAS"
+  --tools all    # Restores native MCP schema conversion
+  --flash-attn true
 )
-# Optional flags (only added if requested — keeps compat across llama.cpp versions).
-[ -n "${LLM_FA:-}" ]        && ARGS+=( --flash-attn "$LLM_FA" )
-[ -n "${LLM_REASONING:-}" ] && ARGS+=( --reasoning-format "$LLM_REASONING" )
 
-echo "Serving: $MODEL"
-echo "  OpenAI API: http://${HOST}:${PORT}/v1   (ctx=$CTX, gpu-layers=$NGL)"
-echo "  NOTE: this is a reasoning model — responses include <think> traces."
+echo "Serving: $MODEL (alias=$ALIAS)"
 exec llama-server "${ARGS[@]}" "$@"

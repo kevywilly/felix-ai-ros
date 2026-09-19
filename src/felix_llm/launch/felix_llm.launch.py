@@ -23,6 +23,7 @@ from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 
 def generate_launch_description():
@@ -30,6 +31,7 @@ def generate_launch_description():
         "llm_base_url": "http://localhost:8080/v1",
         "llm_model": "nemotron-3-nano-4b",
         "locations_file": "",  # empty -> node default (package share config)
+        "store_min_score": "0.5",  # min YOLO conf to persist a sighting
         "mcp": "false",
         "mcp_port": "8000",
         "mcp_transport": "streamable-http",
@@ -40,6 +42,8 @@ def generate_launch_description():
     params = {
         "llm_base_url": LaunchConfiguration("llm_base_url"),
         "llm_model": LaunchConfiguration("llm_model"),
+        "store_min_score": ParameterValue(
+            LaunchConfiguration("store_min_score"), value_type=float),
     }
 
     return LaunchDescription(declared + [
@@ -62,6 +66,7 @@ def generate_launch_description():
                 "--port", LaunchConfiguration("mcp_port"),
                 "--transport", LaunchConfiguration("mcp_transport"),
                 "--cors-origin", LaunchConfiguration("mcp_cors_origin"),
+                "--store-min-score", LaunchConfiguration("store_min_score"),
             ],
         ),
     ])

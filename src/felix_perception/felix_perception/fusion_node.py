@@ -41,6 +41,7 @@ class FusionNode(Node):
         self.declare_parameter("camera_info_yaml", "")
         self.declare_parameter("sync_slop", 0.05)
         self.declare_parameter("range_gap", 0.15)
+        self.declare_parameter("min_score", 0.5)  # drop low-conf detections before placing
         self.declare_parameter("min_cluster_points", 1)
         self.declare_parameter("wedge_margin", 0.0)
         self.declare_parameter("marker_z", 0.1)
@@ -50,6 +51,7 @@ class FusionNode(Node):
         self.laser_frame = g("laser_frame")
         self.map_frame = g("map_frame")
         self.range_gap = float(g("range_gap"))
+        self.min_score = float(g("min_score"))
         self.min_pts = int(g("min_cluster_points"))
         self.wedge_margin = float(g("wedge_margin"))
         self.marker_z = float(g("marker_z"))
@@ -121,6 +123,8 @@ class FusionNode(Node):
 
         mid = 0
         for det in detections.detections:
+            if det.results and det.results[0].hypothesis.score < self.min_score:
+                continue  # too unsure to place as a map object
             placed = self._place(det, laser_xy, ranges, bearings, t_lm, mid)
             if placed is not None:
                 markers.markers.extend(placed)
