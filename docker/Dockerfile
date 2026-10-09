@@ -81,11 +81,15 @@ RUN pip3 install --no-cache-dir \
       pyrplidar
 
 # ---- Tier 8: Web/teleop Python deps (occasional changes) ----
+# mcp/starlette/uvicorn are for felix_llm's MCP server (felix_llm/mcp_server.py,
+# the `ros2 run felix_llm mcp` entry point). starlette + uvicorn also arrive
+# transitively via nicegui — listed explicitly so a nicegui bump can't drop them.
 RUN pip3 install --no-cache-dir --ignore-installed blinker \
  && pip3 install --no-cache-dir \
       flask flask-cors flask-sock \
       nicegui click pandas asyncio-atexit \
-      aiortc aiohttp av
+      aiortc aiohttp av \
+      mcp starlette uvicorn
 
 # ---- Tier 9: Dev/test Python deps (changes during dev) ----
 # setuptools<80: ROS 2 Humble's `colcon build --symlink-install` breaks on
