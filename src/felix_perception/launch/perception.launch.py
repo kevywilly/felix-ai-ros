@@ -13,7 +13,9 @@ the camera resolution for perception, re-calibrate at that resolution.
 
 Args:
   weights            YOLO weights name/path (default yolo11n.pt)
-  conf               detection confidence threshold (default 0.25)
+  conf               detection confidence threshold (default 0.45)
+  min_score          fusion: min conf to place a detection as a map object
+                     (default 0.5)
   imgsz              YOLO input size (default 640)
   publish_annotated  publish the FPV boxes stream (default true)
   require_engine     fail instead of falling back to the .pt (default false)
@@ -30,7 +32,8 @@ from launch_ros.parameter_descriptions import ParameterValue
 def generate_launch_description():
     args = {
         "weights": "yolo11n.pt",
-        "conf": "0.25",
+        "conf": "0.45",
+        "min_score": "0.5",  # fusion: min conf to place a det as a map object
         "imgsz": "640",
         "publish_annotated": "true",
         "require_engine": "false",
@@ -65,5 +68,8 @@ def generate_launch_description():
         executable="fusion",
         name="fusion_node",
         output="screen",
+        parameters=[{
+            "min_score": ParameterValue(lc("min_score"), value_type=float),
+        }],
     )
     return LaunchDescription(declared + [detector, fusion])

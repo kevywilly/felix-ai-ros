@@ -22,23 +22,24 @@
 #   ./llm_server.sh nemotron --temp 0.6 --top-p 0.95 --top-k 20
 #   ./llm_server.sh gemma --port 9090 --ctx-size 16384 --parallel 2
 #   ./llm_server.sh --help        # list every llama-server flag
-#!/usr/bin/env bash
 set -euo pipefail
 
 DEST="${FELIX_LLM_DIR:-/data/models/llm}"
 HOST="${LLM_HOST:-0.0.0.0}"
 PORT="${LLM_PORT:-8080}"
-CTX="${LLM_CTX:-8192}" # Back to your original modest context size
-NGL="${LLM_NGL:-999}"  # Offload all layers to GPU
+CTX="${LLM_CTX:-8192}"          # model supports 262144; keep modest on 8 GB shared w/ ROS
+NGL="${LLM_NGL:-999}"           # offload all layers to GPU
 
-# Default to gemma as you had it
+# First positional arg selects the model (default gemma). Shift it off so any
+# remaining args still pass through to llama-server.
 MODEL_NAME="gemma"
 case "${1:-}" in
   gemma|nemotron) MODEL_NAME="$1"; shift ;;
-  -*|"") ;; 
+  -*|"") ;;                     # no model name given — keep default, leave args
   *) echo "ERROR: unknown model '$1' (expected gemma|nemotron)." >&2; exit 1 ;;
 esac
 
+REASONING=0
 case "$MODEL_NAME" in
   gemma)
     MODEL_FILE="gemma-4-E4B-it-Q4_K_M.gguf"
@@ -47,30 +48,34 @@ case "$MODEL_NAME" in
   nemotron)
     MODEL_FILE="NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf"
     ALIAS="nemotron-3-nano-4b"
+    REASONING=1               # responses include <think> traces
     ;;
 esac
 
+# Explicit LLM_MODEL / LLM_ALIAS env vars still win over the selection above.
 MODEL="${LLM_MODEL:-$DEST/$MODEL_FILE}"
 ALIAS="${LLM_ALIAS:-$ALIAS}"
-
 if [ ! -f "${MODEL}" ]; then
-  echo "ERROR: model not found: $MODEL" >&2
+  echo "ERROR: model not found: $MODEL — run ./llm_download.sh first." >&2
   exit 1
 fi
-
-MODEL="$(realpath "$MODEL")"
+MODEL="$(realpath "$MODEL")"  # llama-server wants absolute path
 
 ARGS=(
   --model "$MODEL"
-  --host "$HOST"
-  --port "$PORT"
+  --host "$HOST" --port "$PORT"
   --ctx-size "$CTX"
   --n-gpu-layers "$NGL"
-  --jinja        # Back to your original template fallback
+  --jinja                       # use the model's embedded chat template
   --alias "$ALIAS"
-  --tools all    # Restores native MCP schema conversion
+  --tools all
   --flash-attn true
 )
+# Optional flags (only added if requested — keeps compat across llama.cpp versions).
+[ -n "${LLM_FA:-}" ]        && ARGS+=( --flash-attn "$LLM_FA" )
+[ -n "${LLM_REASONING:-}" ] && ARGS+=( --reasoning-format "$LLM_REASONING" )
 
-echo "Serving: $MODEL (alias=$ALIAS)"
+echo "Serving: $MODEL  (alias=$ALIAS)"
+echo "  OpenAI API: http://${HOST}:${PORT}/v1   (ctx=$CTX, gpu-layers=$NGL)"
+[ "$REASONING" = 1 ] && echo "  NOTE: this is a reasoning model — responses include <think> traces."
 exec llama-server "${ARGS[@]}" "$@"

@@ -58,7 +58,9 @@ class DetectorNode(Node):
 
         self.declare_parameter("weights", "yolo11n.pt")
         self.declare_parameter("engine_dir", "")
-        self.declare_parameter("conf", 0.25)
+        # YOLO inference floor: detections below this are never produced, so they
+        # never reach /perception/detections, the annotated FPV, fusion, or storage.
+        self.declare_parameter("conf", 0.45)
         self.declare_parameter("imgsz", 640)
         self.declare_parameter("optical_frame", "camera_optical_link")
         self.declare_parameter(

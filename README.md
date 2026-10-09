@@ -22,7 +22,9 @@ The repo root is a colcon workspace; packages live under `src/`:
 | `felix_slam` | RPLIDAR driver + **mapping** (`slam_toolbox` → live map) **and localization** (`nav2_map_server` + **AMCL** on a saved map → `map→odom`). |
 | `felix_nav` | **Autonomous navigation**: the Nav2 servers (NavFn planner, **MPPI** holonomic controller, recovery behaviors, BT navigator) → `/cmd_vel`. |
 | `felix_camera` | CSI camera → compressed image (FPV in Foxglove). |
-| `felix_bringup` | Top-level launch composition + params. Three one-shot stacks: `mapping.launch.py` (build a map), `localization.launch.py` (drive on a saved map), `navigation.launch.py` (autonomous). `felix.launch.py` is the base stack alone. |
+| `felix_perception` | **YOLO** detector (Ultralytics on a TensorRT engine) → `/perception/detections` + annotated FPV image, and **lidar-fused** map-frame object markers on `/perception/objects` (`perception:=true`). |
+| `felix_llm` | **Natural-language control**: a local LLM (Nemotron via llama.cpp) turns "go to the office", "what do you see", "find the cat", "patrol", "roam" into Nav2 goals + behaviors. Shared skills behind a `/llm/command` agent and an MCP server for the llama-server web UI. |
+| `felix_bringup` | Top-level launch composition + params. Three one-shot stacks: `mapping.launch.py` (build a map), `localization.launch.py` (drive on a saved map), `navigation.launch.py` (autonomous + perception/LLM). `felix.launch.py` is the base stack alone. |
 
 Inside `felix_base`:
 
@@ -270,6 +272,116 @@ the 1.04 max, wz 1.2 of 4.58) — raise them once it behaves. The costmap footpr
 the chassis box (`0.22 × 0.28`). First runs: short goals, open floor, clear of stairs;
 `Ctrl-C` drops `/cmd_vel` and the bridge stops the motors.
 
+## Run — natural-language navigation (`felix_llm`)
+
+Teach named places on the map, then tell the **local LLM** (Nemotron via
+`llm_server.sh`) to drive there. The agent turns *"go to the kitchen"* into a
+`NavigateToPose` goal through Nav2 — it **never writes `/cmd_vel`**, so the
+planner and costmaps stay in charge of avoiding obstacles. Three small pieces:
+
+```bash
+ros2 launch felix_bringup navigation.launch.py     # localization + Nav2 (gives /amcl_pose + /navigate_to_pose)
+./llm_server.sh                                    # serve Nemotron on :8080
+ros2 launch felix_llm felix_llm.launch.py          # the NL agent
+```
+
+**Teach places** — drive Felix somewhere with teleop, then capture its pose:
+
+```bash
+ros2 run felix_llm teach kitchen        # saves current /amcl_pose as "kitchen"
+ros2 run felix_llm teach "front door"
+```
+
+**Talk to it** — interactive, or one-shot:
+
+```bash
+ros2 run felix_llm talk                 # prompt: "go to the kitchen", "where are you", "stop"
+ros2 run felix_llm talk go to the kitchen
+```
+
+You can also drive it from Foxglove: publish a `std_msgs/String` on `/llm/command`
+and watch `/llm/response`. Tools the LLM can call: `go_to`, `list_places`,
+`save_place` (so *"save this spot as office"* works), `where_am_i`, `stop`,
+`what_do_you_see`, `have_you_seen`.
+
+**Vision** — with perception running (`navigation.launch.py perception:=true`),
+ask *"what do you see?"* (live `/perception/detections` labels) or *"have you seen
+the cat? where?"*. The agent keeps a passive memory of detections: for *where*, it
+uses the map-frame placement from `/perception/objects` when available (floor-
+standing objects the lidar can range), else the robot's own pose at the time of
+the sighting — then names the nearest saved place: *"Yes, I saw a cat ~10 s ago
+near the kitchen."* Without perception running, these tools say so rather than
+guessing. Sightings **persist** to `sightings.yaml` (next to your places, under
+`install/`, gitignored), so *"have you seen the cat?"* still answers from memory
+after a restart — the agent and MCP processes share the file (merge-on-write).
+
+**Autonomous modes** — beyond one-shot commands, the agent runs long-running
+behaviors (via a single `BehaviorRunner` in the agent node, so the agent and web
+UI never fight over motion). All driving goes through Nav2, so obstacle avoidance
+is the planner's job. Progress streams to `/llm/response` (you'll see it in `talk`
+/ Foxglove); `stop` ends any of them; `what_am_i_doing` reports the active mode.
+
+| Say | Tool | What it does |
+|-----|------|--------------|
+| *"find the cat"* | `find` | Drive to where the cat was last seen (persisted sightings) → 360° scan-spin → check the camera; if not there, try the other saved places until found or exhausted. |
+| *"patrol"* | `patrol` | Loop through the saved named places, scanning at each, until stopped. |
+| *"roam"* / *"drive around"* | `roam` | Wander: pick random reachable points in the mapped free space and let Nav2 drive there avoiding obstacles, forever, until stopped. |
+
+> **Supervise autonomous driving.** These modes drive the robot unattended for
+> long stretches. Keep it watched; `stop` (or Ctrl-C on the stack) halts it. Scan-
+> spins use the Nav2 `Spin` behavior and are skipped automatically if `/spin`
+> isn't up. `roam` needs the `/map` (it's published by the localization/navigation
+> stack); `find`/`have_you_seen` need perception (`perception:=true`).
+
+Places live in `src/felix_llm/config/locations.yaml` (name → `{x, y, yaw}` in the
+`map` frame); it's symlinked back to source, so taught places persist and can be
+hand-edited or committed. Override the endpoint/model with the launch args
+`llm_base_url` / `llm_model`, or the file with the `locations_file` node param.
+
+> **Note:** Nemotron is not in llama.cpp's native tool-call handler list, so
+> llama-server uses its generic `--jinja` tool path. Validate tool-calling works
+> end-to-end once the server is up:
+> ```bash
+> curl -s http://localhost:8080/v1/chat/completions -H 'Content-Type: application/json' -d '{
+>   "model":"nemotron-3-nano-4b",
+>   "messages":[{"role":"user","content":"go to the kitchen"}],
+>   "tools":[{"type":"function","function":{"name":"go_to","description":"drive to a saved place","parameters":{"type":"object","properties":{"place":{"type":"string"}},"required":["place"]}}}]
+> }' | python3 -m json.tool
+> ```
+> Expect a `tool_calls` entry naming `go_to` with `{"place":"kitchen"}`. If it
+> instead answers in prose, lower `temperature` / constrain decoding with a GBNF
+> grammar (see `docs/ideation/`), or serve a model with native tool support.
+
+### Browser control via MCP (llama-server web UI)
+
+The same five skills are also exposed as an **MCP server**, so you can drive the
+robot by chatting in the **llama-server web UI** instead of the `talk` CLI. The
+agent and the MCP server share one implementation (`felix_llm/skills.py`), so
+they can't drift.
+
+Once `mcp` is installed, `navigation.launch.py` starts the server automatically
+(`mcp:=true` by default, on `:8000`); disable with `mcp:=false` or change the port
+with `mcp_port:=...`. To run it standalone instead:
+
+```bash
+pip install mcp                                  # one-time, on the Jetson
+ros2 run felix_llm mcp                           # streamable-HTTP on :8000/mcp
+ros2 run felix_llm mcp --transport sse --port 8000   # or SSE at :8000/sse
+```
+
+Then in the web UI's **MCP servers** settings add `http://<jetson>:8000/mcp` (or
+the `/sse` URL) — use the host the browser uses (e.g. `http://orin1:8000/mcp`),
+not `localhost`. The model can now call `go_to`, `list_places`, `save_place`,
+`where_am_i`, `stop` — so "take me to the office" in the browser drives the robot.
+Needs Nav2 + localization up, same as the agent.
+
+The server **sends CORS headers itself** (the web UI is a different origin than
+`:8000`), so a direct connection works with the proxy toggle **off** — no
+`--webui-mcp-proxy` needed. Lock it down on a shared network with
+`--cors-origin http://orin1:8080`. (Alternatively, if you prefer routing through
+llama-server, serve with `./llm_server.sh --webui-mcp-proxy` and turn the UI's
+proxy toggle on instead.)
+
 ## Run — perception (YOLO + lidar map placement)
 
 `felix_perception` runs YOLO on the camera and places **floor-standing** detections on
@@ -467,8 +579,10 @@ Done: `felix_description` (URDF/TF), `felix_slam` (RPLIDAR + slam_toolbox **mapp
 and `nav2_map_server` + AMCL **localization**), `felix_nav` (**Nav2** autonomy:
 NavFn + MPPI holonomic + behaviors), `felix_camera` (CSI → Foxglove FPV), and
 `felix_perception` (**YOLO** detector on a TensorRT engine + **lidar-fused** map
-placement, `perception:=true`) — composed by `mapping` / `localization` /
-`navigation` one-shots.
+placement, `perception:=true`), and `felix_llm` (**natural-language control**: a
+local-LLM agent + MCP server for teach-a-place, go-to, vision Q&A, and
+find/patrol/roam) — composed by `mapping` / `localization` / `navigation`
+one-shots.
 
 - **Perception next:** Home Assistant/MQTT output, a record-while-driving dataset to
   fine-tune YOLO for the house, and fiducial-marker docking (see `docs/ideation/`).
